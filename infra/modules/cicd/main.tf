@@ -1,10 +1,13 @@
-locals {
-  # Cloud Build's default service account
-  cloudbuild_sa = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+# Dedicated service account for Cloud Build
+resource "google_service_account" "cloudbuild" {
+  project      = var.project_id
+  account_id   = "cloudbuild-sa"
+  display_name = "Cloud Build SA"
+  description  = "Used by Cloud Build triggers to build and deploy the application"
 }
 
-data "google_project" "project" {
-  project_id = var.project_id
+locals {
+  cloudbuild_sa = "serviceAccount:${google_service_account.cloudbuild.email}"
 }
 
 # Artifact Registry repo for Docker images
@@ -28,6 +31,7 @@ resource "google_project_iam_member" "cloudbuild_artifact_writer" {
   member  = local.cloudbuild_sa
 }
 
+# Deploy to Cloud Run
 resource "google_project_iam_member" "cloudbuild_run_admin" {
   project = var.project_id
   role    = "roles/run.admin"
@@ -41,7 +45,7 @@ resource "google_project_iam_member" "cloudbuild_firebase_hosting" {
   member  = local.cloudbuild_sa
 }
 
-# Read secrets (e.g. firebase-config-prod for environment.ts)
+# Read secrets (e.g. firebase-config-dev/prod for environment.ts)
 resource "google_project_iam_member" "cloudbuild_secret_accessor" {
   project = var.project_id
   role    = "roles/secretmanager.secretAccessor"
@@ -49,9 +53,9 @@ resource "google_project_iam_member" "cloudbuild_secret_accessor" {
 }
 
 # Allow Cloud Build SA to impersonate the functions service account
-# (Cloud Deploy requires actAs permission on the SA used by the Cloud Run service)
+# (required by gcloud run services replace, which deploys as functions-sa)
 resource "google_service_account_iam_member" "cloudbuild_actAs_functions_sa" {
-  service_account_id = "projects/${var.project_id}/serviceAccounts/functions-sa-${var.environment}@${var.project_id}.iam.gserviceaccount.com"
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${var.functions_sa_email}"
   role               = "roles/iam.serviceAccountUser"
   member             = local.cloudbuild_sa
 }

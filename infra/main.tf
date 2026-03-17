@@ -84,9 +84,10 @@ module "firebase_hosting" {
 }
 
 module "cicd" {
-  source      = "./modules/cicd"
-  project_id  = var.project_id
-  region      = var.region
-  environment = var.environment
-  depends_on  = [google_project_service.apis, module.functions]
+  source             = "./modules/cicd"
+  project_id         = var.project_id
+  region             = var.region
+  environment        = var.environment
+  functions_sa_email = module.functions.service_account_email
+  depends_on         = [google_project_service.apis, module.functions]
 }
