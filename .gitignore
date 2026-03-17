@@ -13,8 +13,8 @@ frontend/tmp/
 frontend/out-tsc/
 frontend/.angular/
 frontend/coverage/
-npm-debug.log
-yarn-error.log
+frontend/.firebase/
+*.log
 
 # ── Terraform ──────────────────────────────────────────────────────────────────
 infra/.terraform/

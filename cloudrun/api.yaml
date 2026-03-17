@@ -1,0 +1,31 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: api-${DEPLOY_ENV}
+  labels:
+    app: my-digital-album
+    environment: ${DEPLOY_ENV}
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      serviceAccountName: ${DEPLOY_SERVICE_ACCOUNT}
+      containers:
+        - image: asia-east1-docker.pkg.dev/${DEPLOY_PROJECT}/functions-${DEPLOY_ENV}/api:${DEPLOY_IMAGE_TAG}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: GCP_PROJECT_ID
+              value: "${DEPLOY_PROJECT}"
+            - name: ENVIRONMENT
+              value: "${DEPLOY_ENV}"
+            - name: FIRESTORE_DATABASE
+              value: "${DEPLOY_FIRESTORE_DB}"
+            - name: MEDIA_BUCKET
+              value: "${DEPLOY_MEDIA_BUCKET}"
+            - name: THUMBNAILS_BUCKET
+              value: "${DEPLOY_THUMBNAILS_BUCKET}"
