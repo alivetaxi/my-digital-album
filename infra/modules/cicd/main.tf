@@ -45,6 +45,13 @@ resource "google_project_iam_member" "cloudbuild_firebase_hosting" {
   member  = local.cloudbuild_sa
 }
 
+# Write build logs to Cloud Logging
+resource "google_project_iam_member" "cloudbuild_log_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = local.cloudbuild_sa
+}
+
 # Read secrets (e.g. firebase-config-dev/prod for environment.ts)
 resource "google_project_iam_member" "cloudbuild_secret_accessor" {
   project = var.project_id

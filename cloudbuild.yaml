@@ -102,6 +102,7 @@ steps:
     args:
       - -c
       - |
+        apt-get install -y gettext-base > /dev/null
         export DEPLOY_ENV=$_ENV
         export DEPLOY_PROJECT=$_GCP_PROJECT_ID
         export DEPLOY_SERVICE_ACCOUNT=$_SERVICE_ACCOUNT
@@ -120,6 +121,7 @@ steps:
     args:
       - -c
       - |
+        apt-get install -y gettext-base > /dev/null
         export DEPLOY_ENV=$_ENV
         export DEPLOY_PROJECT=$_GCP_PROJECT_ID
         export DEPLOY_SERVICE_ACCOUNT=$_SERVICE_ACCOUNT
