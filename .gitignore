@@ -1,0 +1,54 @@
+# ── Environment / secrets ──────────────────────────────────────────────────────
+frontend/src/environments/environment.development.ts
+frontend/src/environments/environment.prod.ts
+.env
+.env.*
+geocoding-api-key
+firebase-service-account.json
+
+# ── Angular / Node ─────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/tmp/
+frontend/out-tsc/
+frontend/.angular/
+frontend/coverage/
+npm-debug.log
+yarn-error.log
+
+# ── Terraform ──────────────────────────────────────────────────────────────────
+infra/.terraform/
+infra/.terraform.lock.hcl
+infra/terraform.tfstate
+infra/terraform.tfstate.backup
+infra/*.tfstate*
+infra/crash.log
+infra/terraform.dev.tfvars
+infra/terraform.prod.tfvars
+
+# ── Python ─────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+backend/dist/
+backend/build/
+
+# ── IDEs ───────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+*.sublime-workspace
+*.launch
+.settings/
+.project
+.classpath
+.c9/
+
+# ── OS ─────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
