@@ -1,0 +1,96 @@
+<div class="viewer-page" tabindex="0">
+  <!-- Header -->
+  <header class="viewer-header">
+    <a class="back-btn" [routerLink]="['/albums', albumId()]">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+    </a>
+    <span class="counter">
+      @if (mediaList().length > 0) {
+        {{ currentIndex() + 1 }} / {{ mediaList().length }}{{ nextCursor() ? '+' : '' }}
+      }
+    </span>
+    <div class="header-spacer"></div>
+  </header>
+
+  <!-- Main media area -->
+  <div class="media-area"
+       [style.transform]="'translateX(' + dragOffset() + 'px)'"
+       [style.transition]="dragTransition()">
+    @if (currentMedia()) {
+      @if (currentMedia()!.type === 'photo') {
+        <img class="main-image"
+             [src]="currentMedia()!.originalUrl ?? currentMedia()!.thumbnailUrl ?? ''"
+             [alt]="currentMedia()!.description ?? ''" />
+      } @else {
+        <video class="main-video" controls [src]="currentMedia()!.originalUrl ?? ''">
+          Your browser does not support video.
+        </video>
+      }
+    }
+  </div>
+
+  <!-- Arrow navigation (non-touch fallback) -->
+  <button class="nav-arrow nav-prev" (click)="goTo(currentIndex() - 1)" aria-label="Previous">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  </button>
+  <button class="nav-arrow nav-next" (click)="goTo(currentIndex() + 1)" aria-label="Next">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="9 18 15 12 9 6"/>
+    </svg>
+  </button>
+
+  <!-- Metadata -->
+  <div class="metadata">
+    @if (currentMedia()?.description) {
+      <p class="media-description">{{ currentMedia()!.description }}</p>
+    }
+    <div class="meta-row">
+      @if (currentMedia()?.takenAt) {
+        <span class="meta-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          {{ formatDate(currentMedia()!.takenAt) }}
+        </span>
+      }
+      @if (currentMedia()?.takenPlace?.placeName) {
+        <span class="meta-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+          </svg>
+          {{ currentMedia()!.takenPlace!.placeName }}
+        </span>
+      }
+    </div>
+  </div>
+
+  <!-- Thumbnail strip -->
+  <div class="strip-wrapper">
+    <div class="thumbnail-strip" #strip>
+      @for (media of mediaList(); track media.id; let i = $index) {
+        <button class="strip-thumb" [class.active]="i === currentIndex()" (click)="goTo(i)">
+          @if (media.thumbnailUrl) {
+            <img [src]="media.thumbnailUrl" [alt]="'item ' + i" loading="lazy" />
+          } @else {
+            <div class="thumb-placeholder"></div>
+          }
+          @if (media.type === 'video') {
+            <div class="thumb-play">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+            </div>
+          }
+        </button>
+      }
+      @if (isPreloading()) {
+        <div class="strip-skeleton skeleton"></div>
+      }
+    </div>
+  </div>
+</div>

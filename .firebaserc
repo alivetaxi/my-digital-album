@@ -1,0 +1,13 @@
+{
+  "projects": {
+    "default": "my-digital-album"
+  },
+  "targets": {
+    "my-digital-album": {
+      "hosting": {
+        "dev": ["my-digital-album-dev"],
+        "prod": ["my-digital-album-prod"]
+      }
+    }
+  }
+}

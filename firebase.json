@@ -1,0 +1,22 @@
+{
+  "hosting": [
+    {
+      "target": "dev",
+      "public": "frontend/dist/frontend/browser",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        { "source": "/api/**", "run": { "serviceId": "api-dev", "region": "asia-east1" } },
+        { "source": "**",      "destination": "/index.html" }
+      ]
+    },
+    {
+      "target": "prod",
+      "public": "frontend/dist/frontend/browser",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        { "source": "/api/**", "run": { "serviceId": "api-prod", "region": "asia-east1" } },
+        { "source": "**",      "destination": "/index.html" }
+      ]
+    }
+  ]
+}

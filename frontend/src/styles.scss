@@ -1,0 +1,38 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #fff9f3;
+  color: #2c1a0e;
+}
+
+:root {
+  --bg-primary: #fff9f3;
+  --bg-secondary: #fff0e4;
+  --bg-card: #ffffff;
+  --bg-hover: #ffecd8;
+  --text-primary: #2c1a0e;
+  --text-secondary: #9a7560;
+  --accent: #e07b39;
+  --accent-light: #f0a06a;
+  --border: #ead8c8;
+  --skeleton: #f5e8da;
+  --skeleton-shine: #fdf0e6;
+  --shadow: 0 2px 12px rgba(100, 50, 10, 0.08);
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--skeleton) 25%, var(--skeleton-shine) 50%, var(--skeleton) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
