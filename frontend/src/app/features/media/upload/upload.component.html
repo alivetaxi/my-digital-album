@@ -1,0 +1,98 @@
+<div class="modal-backdrop" (click)="cancel()"></div>
+<div class="modal">
+  <header class="modal-header">
+    <h2>Upload Photos & Videos</h2>
+    <button class="close-btn" (click)="cancel()" aria-label="Close">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="modal-body">
+    <!-- Drop zone -->
+    @if (!isUploading()) {
+      <div
+        class="drop-zone"
+        [class.dragging]="isDragging()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave()"
+        (drop)="onDrop($event)"
+      >
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+        </svg>
+        <p class="drop-hint">Drag & drop photos or videos here</p>
+        <label class="btn-secondary pick-btn">
+          Choose Files
+          <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime" (change)="onFileInput($event)" hidden />
+        </label>
+        <p class="drop-sub">JPEG, PNG, WebP, HEIC · MP4, MOV · max 30 MB · up to 50 files</p>
+      </div>
+    }
+
+    <!-- Truncation warning -->
+    @if (truncated()) {
+      <p class="warn-msg">Only the first 50 files were added.</p>
+    }
+
+    <!-- Validation errors -->
+    @if (rejections().length > 0) {
+      <div class="rejections">
+        <p class="reject-title">{{ rejections().length }} file(s) skipped:</p>
+        @for (r of rejections(); track r.file.name) {
+          <p class="reject-item">
+            <span class="reject-name">{{ r.file.name }}</span>
+            <span class="reject-reason">{{ r.reason === 'size' ? 'exceeds 30 MB' : 'unsupported format' }}</span>
+          </p>
+        }
+      </div>
+    }
+
+    <!-- File list -->
+    @if (entries().length > 0) {
+      <ul class="file-list">
+        @for (entry of entries(); track entry.file.name; let i = $index) {
+          <li class="file-item">
+            <div class="file-meta">
+              <span class="file-name">{{ entry.file.name }}</span>
+              <span class="file-size">{{ formatSize(entry.file.size) }}</span>
+            </div>
+            @if (isUploading()) {
+              <div class="progress-bar">
+                <div class="progress-fill" [style.width.%]="entry.progress"></div>
+              </div>
+            } @else {
+              <button class="remove-btn" (click)="removeEntry(i)" aria-label="Remove">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    }
+
+    <!-- Upload progress summary -->
+    @if (isUploading()) {
+      <p class="progress-summary">Uploading {{ uploadDone() }} / {{ uploadTotal() }}…</p>
+    }
+
+    @if (errorMessage()) {
+      <p class="error-msg">{{ errorMessage() }}</p>
+    }
+  </div>
+
+  <footer class="modal-footer">
+    <button class="btn-secondary" (click)="cancel()" [disabled]="isUploading()">Cancel</button>
+    <button
+      class="btn-primary"
+      [disabled]="isUploading() || entries().length === 0"
+      (click)="upload()"
+    >
+      @if (isUploading()) { Uploading… } @else { Upload {{ entries().length }} file(s) }
+    </button>
+  </footer>
+</div>

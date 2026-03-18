@@ -1,59 +1,122 @@
-import { Component, computed, ElementRef, OnInit, signal, viewChild, inject } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Media } from '../../../core/models';
-import { MOCK_ALBUMS, getMockMediaForAlbum } from '../../../core/services/mock-data';
+import { Album, Media } from '../../../core/models';
+import { AlbumService } from '../../../core/services/album.service';
+import { MediaService } from '../../../core/services/media.service';
+import { UploadComponent } from '../../media/upload/upload.component';
 
 @Component({
   selector: 'app-album-detail',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, UploadComponent],
   templateUrl: './album-detail.component.html',
   styleUrl: './album-detail.component.scss',
 })
-export class AlbumDetailComponent implements OnInit {
+export class AlbumDetailComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
+  private readonly albumService = inject(AlbumService);
+  private readonly mediaService = inject(MediaService);
 
   readonly albumId = signal('');
-  readonly album = computed(() => MOCK_ALBUMS.find(a => a.id === this.albumId()) ?? null);
+  readonly album = signal<Album | null>(null);
   readonly mediaItems = signal<Media[]>([]);
   readonly isLoading = signal(false);
   readonly nextCursor = signal<string | null>(null);
   readonly loadError = signal(false);
-  readonly currentPage = signal(1);
+  readonly showUpload = signal(false);
 
   readonly sentinel = viewChild<ElementRef>('sentinel');
 
   private observer: IntersectionObserver | null = null;
+  /** Map of mediaId → unsubscribe fn for Firestore thumbnail watchers */
+  private watchers = new Map<string, () => void>();
 
-  ngOnInit() {
+  async ngOnInit() {
     this.albumId.set(this.route.snapshot.paramMap.get('albumId') ?? '');
-    this.loadPage(1);
-
-    // Set up intersection observer after initial load
+    await this.loadAlbum();
+    await this.loadMedia();
     setTimeout(() => this.setupObserver(), 100);
   }
 
-  private loadPage(page: number) {
+  ngOnDestroy() {
+    this.observer?.disconnect();
+    this.watchers.forEach(unsub => unsub());
+    this.watchers.clear();
+  }
+
+  private async loadAlbum() {
+    try {
+      const album = await this.albumService.getAlbum(this.albumId());
+      this.album.set(album);
+    } catch {
+      // ignore — album header missing is non-fatal; grid still loads
+    }
+  }
+
+  private async loadMedia(after?: string) {
     this.isLoading.set(true);
     this.loadError.set(false);
-
-    // Simulate async load with 800ms delay
-    setTimeout(() => {
-      const result = getMockMediaForAlbum(this.albumId(), page);
-      this.mediaItems.update(items => [...items, ...result.items]);
-      this.nextCursor.set(result.nextCursor);
-      this.currentPage.set(page);
+    try {
+      const page = await this.mediaService.listMedia(this.albumId(), 30, after);
+      this.mediaItems.update(items => [...items, ...page.items]);
+      this.nextCursor.set(page.nextCursor);
+      // Watch thumbnail status for any pending items
+      for (const m of page.items) {
+        if (m.thumbnailStatus === 'pending') {
+          this.watchItem(m);
+        }
+      }
+    } catch {
+      this.loadError.set(true);
+    } finally {
       this.isLoading.set(false);
-    }, page === 1 ? 0 : 1200);
+    }
+  }
+
+  private watchItem(media: Media) {
+    if (this.watchers.has(media.id)) return;
+    const unsub = this.mediaService.watchThumbnailStatus(
+      this.albumId(),
+      media.id,
+      (status, thumbnailPath) => {
+        this.mediaItems.update(list =>
+          list.map(m =>
+            m.id === media.id
+              ? {
+                  ...m,
+                  thumbnailStatus: status,
+                  thumbnailPath,
+                  thumbnailUrl: this.mediaService.thumbnailUrl(thumbnailPath),
+                }
+              : m
+          )
+        );
+        if (status !== 'pending') {
+          this.watchers.get(media.id)?.();
+          this.watchers.delete(media.id);
+        }
+      }
+    );
+    this.watchers.set(media.id, unsub);
   }
 
   loadMore() {
     if (this.isLoading() || this.nextCursor() === null) return;
-    this.loadPage(this.currentPage() + 1);
+    this.loadMedia(this.nextCursor()!);
   }
 
   retryLoad() {
-    this.loadPage(this.currentPage() + 1);
+    this.loadMedia(this.nextCursor() ?? undefined);
+  }
+
+  onUploadDone() {
+    this.showUpload.set(false);
+    // Reload from scratch to pick up newly uploaded items
+    this.mediaItems.set([]);
+    this.nextCursor.set(null);
+    this.loadMedia();
+    // Refresh album header (mediaCount changed server-side after thumbnail processing)
+    this.loadAlbum();
   }
 
   private setupObserver() {

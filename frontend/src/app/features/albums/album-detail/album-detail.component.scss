@@ -115,3 +115,20 @@
 .sentinel {
   height: 1px;
 }
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 0;
+  flex-shrink: 0;
+
+  &:hover { background: var(--bg-hover); }
+}
+
+.upload-btn {
+  margin-left: auto;
+}

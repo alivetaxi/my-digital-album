@@ -1,0 +1,249 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+}
+
+.modal {
+  position: fixed;
+  inset-inline: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 520px;
+  margin: 0 auto;
+  background: var(--surface, #fff);
+  border-radius: 16px;
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  max-height: 90vh;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 0;
+  flex-shrink: 0;
+
+  h2 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+  }
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-secondary, #666);
+  line-height: 0;
+}
+
+.modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+// Drop zone
+.drop-zone {
+  border: 2px dashed var(--border, #ddd);
+  border-radius: 12px;
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary, #666);
+  transition: border-color 0.15s, background 0.15s;
+
+  &.dragging {
+    border-color: var(--primary, #1a73e8);
+    background: rgba(26, 115, 232, 0.04);
+  }
+}
+
+.drop-hint {
+  margin: 0;
+  font-weight: 500;
+}
+
+.drop-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.pick-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #ddd);
+  background: none;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text, #333);
+}
+
+// Warnings / errors
+.warn-msg {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--warning, #f9ab00);
+}
+
+.rejections {
+  background: rgba(217, 48, 37, 0.06);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.reject-title {
+  margin: 0 0 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--error, #d93025);
+}
+
+.reject-item {
+  margin: 0;
+  font-size: 0.8125rem;
+  display: flex;
+  gap: 6px;
+}
+
+.reject-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reject-reason {
+  color: var(--error, #d93025);
+  white-space: nowrap;
+}
+
+// File list
+.file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #eee);
+  border-radius: 8px;
+}
+
+.file-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-name {
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #666);
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: var(--text-secondary, #999);
+  line-height: 0;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--error, #d93025);
+  }
+}
+
+// Progress
+.progress-bar {
+  width: 80px;
+  height: 4px;
+  background: var(--border, #eee);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary, #1a73e8);
+  transition: width 0.3s;
+}
+
+.progress-summary {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #666);
+  text-align: center;
+}
+
+.error-msg {
+  margin: 0;
+  color: var(--error, #d93025);
+  font-size: 0.875rem;
+}
+
+// Footer
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 20px 20px;
+  flex-shrink: 0;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  font-weight: 500;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.btn-primary {
+  background: var(--primary, #1a73e8);
+  color: #fff;
+}
+
+.btn-secondary {
+  background: none;
+  color: var(--text, #333);
+  border: 1px solid var(--border, #ddd);
+}

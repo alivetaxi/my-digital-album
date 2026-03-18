@@ -1,0 +1,56 @@
+<div class="modal-backdrop" (click)="cancel()"></div>
+<div class="modal">
+  <header class="modal-header">
+    <h2>{{ album() ? 'Edit Album' : 'New Album' }}</h2>
+    <button class="close-btn" (click)="cancel()" aria-label="Close">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="modal-body">
+    <label class="field-label" for="album-title">Title</label>
+    <input
+      id="album-title"
+      class="text-input"
+      type="text"
+      placeholder="Album title"
+      [value]="title()"
+      (input)="title.set($any($event.target).value)"
+      maxlength="100"
+      autofocus
+    />
+
+    <fieldset class="visibility-group">
+      <legend class="field-label">Visibility</legend>
+      <div class="visibility-options">
+        @for (option of [['private','Private'],['public','Public'],['group','Group']] ; track option[0]) {
+          <button
+            type="button"
+            class="visibility-option"
+            [class.selected]="visibility() === option[0]"
+            (click)="setVisibility($any(option[0]))"
+          >
+            {{ option[1] }}
+          </button>
+        }
+      </div>
+    </fieldset>
+
+    @if (errorMessage()) {
+      <p class="error-msg">{{ errorMessage() }}</p>
+    }
+  </div>
+
+  <footer class="modal-footer">
+    <button class="btn-secondary" (click)="cancel()">Cancel</button>
+    <button
+      class="btn-primary"
+      [disabled]="isSaving() || !title().trim()"
+      (click)="save()"
+    >
+      @if (isSaving()) { Saving… } @else { {{ album() ? 'Save' : 'Create' }} }
+    </button>
+  </footer>
+</div>
