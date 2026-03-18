@@ -42,6 +42,16 @@ resource "google_project_iam_member" "functions_run_invoker" {
   member  = "serviceAccount:${google_service_account.functions_sa.email}"
 }
 
+# Allow unauthenticated invocations of the API service.
+# Security is enforced at the application layer via Firebase ID token verification.
+resource "google_cloud_run_service_iam_member" "api_public_invoker" {
+  project  = var.project_id
+  location = var.region
+  service  = "api-${var.environment}"
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
 resource "google_project_iam_member" "functions_eventarc_receiver" {
   project = var.project_id
   role    = "roles/eventarc.eventReceiver"
