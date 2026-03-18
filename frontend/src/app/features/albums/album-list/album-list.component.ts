@@ -2,6 +2,7 @@ import { Component, inject, signal, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Album } from '../../../core/models';
 import { AlbumService } from '../../../core/services/album.service';
+import { AuthService } from '../../../core/auth/auth.service';
 import { AlbumFormComponent } from '../album-form/album-form.component';
 
 @Component({
@@ -13,6 +14,7 @@ import { AlbumFormComponent } from '../album-form/album-form.component';
 })
 export class AlbumListComponent implements OnInit {
   private readonly albumService = inject(AlbumService);
+  readonly isAuthenticated = inject(AuthService).isAuthenticated;
 
   readonly myAlbums = signal<Album[]>([]);
   readonly sharedWithMe = signal<Album[]>([]);
