@@ -7,6 +7,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { MediaService } from './media.service';
 import { AuthService } from '../auth/auth.service';
 
+/** Flush the 2-tick async chain inside authHeaders(): getIdToken() → authHeaders() resolve. */
+const flushAuth = () => Promise.resolve().then(() => Promise.resolve());
+
 const MOCK_MEDIA_RAW = {
   id: 'm1',
   type: 'photo',
@@ -97,7 +100,7 @@ describe('MediaService', () => {
   describe('listMedia', () => {
     it('returns deserialized media items', async () => {
       const promise = service.listMedia('a1');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1/media?limit=30').flush({
         items: [MOCK_MEDIA_RAW],
         nextCursor: null,
@@ -112,7 +115,7 @@ describe('MediaService', () => {
 
     it('passes after cursor as query param', async () => {
       const promise = service.listMedia('a1', 10, 'cursor123');
-      await Promise.resolve();
+      await flushAuth();
       const req = http.expectOne('/api/albums/a1/media?limit=10&after=cursor123');
       expect(req.request.params.get('after')).toBe('cursor123');
       req.flush({ items: [], nextCursor: null });
@@ -121,7 +124,7 @@ describe('MediaService', () => {
 
     it('throws AlbumApiError on 404', async () => {
       const promise = service.listMedia('missing');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/missing/media?limit=30').flush(
         { error: { code: 'ALBUM_NOT_FOUND', message: 'Album not found.', status: 404 } },
         { status: 404, statusText: 'Not Found' }
@@ -134,7 +137,7 @@ describe('MediaService', () => {
 
     it('throws AlbumApiError on 403 for non-member', async () => {
       const promise = service.listMedia('a1');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1/media?limit=30').flush(
         { error: { code: 'NOT_GROUP_MEMBER', message: 'Not a group member.', status: 403 } },
         { status: 403, statusText: 'Forbidden' }
@@ -149,7 +152,7 @@ describe('MediaService', () => {
   describe('updateMedia', () => {
     it('PATCHes description and returns updated media', async () => {
       const promise = service.updateMedia('a1', 'm1', { description: 'Hello' });
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1/media/m1').flush({
         ...MOCK_MEDIA_RAW,
         description: 'Hello',
@@ -161,7 +164,7 @@ describe('MediaService', () => {
 
     it('throws AlbumApiError on 403', async () => {
       const promise = service.updateMedia('a1', 'm1', { description: 'X' });
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1/media/m1').flush(
         { error: { code: 'PERMISSION_DENIED', message: 'Permission denied.', status: 403 } },
         { status: 403, statusText: 'Forbidden' }
@@ -174,7 +177,7 @@ describe('MediaService', () => {
 
     it('throws AlbumApiError on 404', async () => {
       const promise = service.updateMedia('a1', 'missing', { description: 'X' });
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1/media/missing').flush(
         { error: { code: 'MEDIA_NOT_FOUND', message: 'Media not found.', status: 404 } },
         { status: 404, statusText: 'Not Found' }
@@ -189,7 +192,7 @@ describe('MediaService', () => {
   describe('deleteMedia', () => {
     it('sends DELETE request', async () => {
       const promise = service.deleteMedia('a1', 'm1');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1/media/m1').flush(null);
 
       await expectAsync(promise).toBeResolved();
@@ -197,7 +200,7 @@ describe('MediaService', () => {
 
     it('throws AlbumApiError on 400 when media is cover', async () => {
       const promise = service.deleteMedia('a1', 'm1');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1/media/m1').flush(
         { error: { code: 'MEDIA_IS_COVER', message: 'Cannot delete the cover media.', status: 400 } },
         { status: 400, statusText: 'Bad Request' }
@@ -210,7 +213,7 @@ describe('MediaService', () => {
 
     it('throws AlbumApiError on 403', async () => {
       const promise = service.deleteMedia('a1', 'm1');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1/media/m1').flush(
         { error: { code: 'PERMISSION_DENIED', message: 'Permission denied.', status: 403 } },
         { status: 403, statusText: 'Forbidden' }
@@ -223,7 +226,7 @@ describe('MediaService', () => {
 
     it('throws AlbumApiError on 404', async () => {
       const promise = service.deleteMedia('a1', 'missing');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1/media/missing').flush(
         { error: { code: 'MEDIA_NOT_FOUND', message: 'Media not found.', status: 404 } },
         { status: 404, statusText: 'Not Found' }

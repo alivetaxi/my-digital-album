@@ -7,6 +7,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { AlbumService, AlbumApiError } from './album.service';
 import { AuthService } from '../auth/auth.service';
 
+/** Flush the 2-tick async chain inside authHeaders(): getIdToken() → authHeaders() resolve. */
+const flushAuth = () => Promise.resolve().then(() => Promise.resolve());
+
 const MOCK_ALBUM = {
   id: 'a1',
   title: 'Trip',
@@ -49,7 +52,7 @@ describe('AlbumService', () => {
       const response = { mine: [MOCK_ALBUM], shared: [], public: [] };
       const promise = service.listAlbums();
 
-      await Promise.resolve(); // let authHeaders resolve
+      await flushAuth();
       http.expectOne('/api/albums').flush(response);
 
       const result = await promise;
@@ -59,7 +62,7 @@ describe('AlbumService', () => {
 
     it('throws AlbumApiError on 403', async () => {
       const promise = service.listAlbums();
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums').flush(
         { error: { code: 'FORBIDDEN', message: 'Forbidden', status: 403 } },
         { status: 403, statusText: 'Forbidden' }
@@ -74,7 +77,7 @@ describe('AlbumService', () => {
   describe('createAlbum', () => {
     it('POSTs and returns the created album', async () => {
       const promise = service.createAlbum({ title: 'New', visibility: 'private' });
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums').flush(MOCK_ALBUM);
 
       const result = await promise;
@@ -83,7 +86,7 @@ describe('AlbumService', () => {
 
     it('throws AlbumApiError on 400', async () => {
       const promise = service.createAlbum({ title: '', visibility: 'private' });
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums').flush(
         { error: { code: 'VALIDATION_ERROR', message: 'Title is required.', status: 400 } },
         { status: 400, statusText: 'Bad Request' }
@@ -99,7 +102,7 @@ describe('AlbumService', () => {
     it('PATCHes the album and returns updated data', async () => {
       const updated = { ...MOCK_ALBUM, title: 'Updated' };
       const promise = service.updateAlbum('a1', { title: 'Updated' });
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1').flush(updated);
 
       const result = await promise;
@@ -108,7 +111,7 @@ describe('AlbumService', () => {
 
     it('throws AlbumApiError on 403', async () => {
       const promise = service.updateAlbum('a1', { title: 'X' });
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1').flush(
         { error: { code: 'PERMISSION_DENIED', message: 'Permission denied.', status: 403 } },
         { status: 403, statusText: 'Forbidden' }
@@ -123,7 +126,7 @@ describe('AlbumService', () => {
   describe('deleteAlbum', () => {
     it('sends DELETE request', async () => {
       const promise = service.deleteAlbum('a1');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1').flush(null);
 
       await expectAsync(promise).toBeResolved();
@@ -131,7 +134,7 @@ describe('AlbumService', () => {
 
     it('throws AlbumApiError on 409', async () => {
       const promise = service.deleteAlbum('a1');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1').flush(
         { error: { code: 'ALBUM_NOT_EMPTY', message: 'Album has 3 media item(s).', status: 409 } },
         { status: 409, statusText: 'Conflict' }
@@ -146,7 +149,7 @@ describe('AlbumService', () => {
   describe('getAlbum', () => {
     it('fetches album by id', async () => {
       const promise = service.getAlbum('a1');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/a1').flush(MOCK_ALBUM);
 
       const result = await promise;
@@ -155,7 +158,7 @@ describe('AlbumService', () => {
 
     it('throws AlbumApiError on 404', async () => {
       const promise = service.getAlbum('missing');
-      await Promise.resolve();
+      await flushAuth();
       http.expectOne('/api/albums/missing').flush(
         { error: { code: 'ALBUM_NOT_FOUND', message: 'Album not found.', status: 404 } },
         { status: 404, statusText: 'Not Found' }
