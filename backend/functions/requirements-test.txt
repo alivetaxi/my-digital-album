@@ -1,0 +1,4 @@
+# Test-only dependencies — not included in production Docker images
+pytest>=8
+pytest-mock>=3
+httpx>=0.27          # required by FastAPI TestClient

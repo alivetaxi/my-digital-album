@@ -11,9 +11,11 @@ from fastapi import FastAPI
 from albums import router as albums_router
 from groups import router as groups_router
 from media import router as media_router
+from thumbnail_proxy import router as thumbnails_router
 
 app = FastAPI(title="My Digital Album API", root_path="/api")
 
 app.include_router(albums_router)
 app.include_router(media_router)
 app.include_router(groups_router)
+app.include_router(thumbnails_router)
