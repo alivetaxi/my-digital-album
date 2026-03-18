@@ -98,7 +98,7 @@ describe('MediaService', () => {
     it('returns deserialized media items', async () => {
       const promise = service.listMedia('a1');
       await Promise.resolve();
-      http.expectOne(req => req.url === '/api/albums/a1/media').flush({
+      http.expectOne('/api/albums/a1/media?limit=30').flush({
         items: [MOCK_MEDIA_RAW],
         nextCursor: null,
       });
@@ -113,7 +113,7 @@ describe('MediaService', () => {
     it('passes after cursor as query param', async () => {
       const promise = service.listMedia('a1', 10, 'cursor123');
       await Promise.resolve();
-      const req = http.expectOne(r => r.url === '/api/albums/a1/media');
+      const req = http.expectOne('/api/albums/a1/media?limit=10&after=cursor123');
       expect(req.request.params.get('after')).toBe('cursor123');
       req.flush({ items: [], nextCursor: null });
       await promise;
@@ -122,7 +122,7 @@ describe('MediaService', () => {
     it('throws AlbumApiError on 404', async () => {
       const promise = service.listMedia('missing');
       await Promise.resolve();
-      http.expectOne(r => r.url === '/api/albums/missing/media').flush(
+      http.expectOne('/api/albums/missing/media?limit=30').flush(
         { error: { code: 'ALBUM_NOT_FOUND', message: 'Album not found.', status: 404 } },
         { status: 404, statusText: 'Not Found' }
       );
@@ -135,7 +135,7 @@ describe('MediaService', () => {
     it('throws AlbumApiError on 403 for non-member', async () => {
       const promise = service.listMedia('a1');
       await Promise.resolve();
-      http.expectOne(r => r.url === '/api/albums/a1/media').flush(
+      http.expectOne('/api/albums/a1/media?limit=30').flush(
         { error: { code: 'NOT_GROUP_MEMBER', message: 'Not a group member.', status: 403 } },
         { status: 403, statusText: 'Forbidden' }
       );
