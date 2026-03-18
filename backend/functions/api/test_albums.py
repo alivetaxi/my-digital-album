@@ -31,6 +31,21 @@ class TestListAlbums:
         assert len(data["public"]) == 1
         assert data["public"][0]["id"] == "pub-1"
 
+    def test_invalid_token_returns_only_public(self, anon_client, mocker):
+        """A request with an invalid/expired token degrades to public-only results."""
+        pub = make_album(album_id="pub-1", owner=OTHER_UID, visibility="public")
+        db = build_db(album_list=[pub])
+        mocker.patch("albums.get_db", return_value=db)
+
+        # anon_client simulates get_uid returning None, which is exactly what
+        # happens when verify_id_token raises (bad token, expired, wrong project).
+        resp = anon_client.get("/api/albums", headers={"Authorization": "Bearer bad-token"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["mine"] == []
+        assert data["shared"] == []
+        assert len(data["public"]) == 1
+
     def test_authenticated_populates_mine(self, client, mocker):
         mine = make_album(album_id="mine-1", owner=TEST_UID, visibility="private")
         db = build_db(album_list=[mine])

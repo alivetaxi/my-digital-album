@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 import firebase_admin
 from firebase_admin import auth as firebase_auth
@@ -11,7 +12,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 logger = logging.getLogger(__name__)
 
 if not firebase_admin._apps:
-    firebase_admin.initialize_app()
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    opts = {"projectId": project_id} if project_id else {}
+    firebase_admin.initialize_app(options=opts)
 
 _bearer = HTTPBearer(auto_error=False)
 
