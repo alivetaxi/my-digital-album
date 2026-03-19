@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 import functions_framework
 from cloudevents.http import CloudEvent
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 GCS_PATH_RE = re.compile(
