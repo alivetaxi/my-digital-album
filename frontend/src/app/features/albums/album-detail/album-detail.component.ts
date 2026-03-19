@@ -20,6 +20,8 @@ export class AlbumDetailComponent implements OnInit, OnDestroy {
   private readonly mediaService = inject(MediaService);
   private readonly auth = inject(AuthService);
 
+  readonly isAuthenticated = computed(() => this.auth.uid() !== null);
+
   readonly isOwner = computed(() => {
     const album = this.album();
     return album !== null && album.ownerId === this.auth.uid();

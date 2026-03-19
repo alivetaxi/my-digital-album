@@ -10,47 +10,84 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == resource.data.ownerId;
     }
 
-    function isGroupMember(env, groupId) {
+    function isGroupMember(groupsCol, groupId) {
       return isAuth() &&
         request.auth.uid in
-          get(/databases/$(database)/documents/groups-$(env)/$(groupId)).data.memberIds;
+          get(/databases/$(database)/documents/$(groupsCol)/$(groupId)).data.memberIds;
     }
 
-    function canReadAlbum(env, album) {
+    function canReadAlbum(groupsCol, album) {
       return album.data.visibility == 'public'
         || (isAuth() && album.data.ownerId == request.auth.uid)
-        || (album.data.visibility == 'group' && isGroupMember(env, album.data.groupId));
+        || (album.data.visibility == 'group' && isGroupMember(groupsCol, album.data.groupId));
     }
 
-    match /users-{env}/{uid} {
+    // ── Dev environment ──────────────────────────────────────────────────────
+
+    match /users-dev/{uid} {
       allow read, write: if isAuth() && request.auth.uid == uid;
     }
 
-    match /groups-{env}/{groupId} {
-      allow read: if isAuth() && isGroupMember(env, groupId);
+    match /groups-dev/{groupId} {
+      allow read: if isAuth() && isGroupMember('groups-dev', groupId);
       allow create: if isAuth();
       allow update, delete: if isOwner(resource);
     }
 
-    match /albums-{env}/{albumId} {
-      allow read: if canReadAlbum(env, resource);
+    match /albums-dev/{albumId} {
+      allow read: if canReadAlbum('groups-dev', resource);
       allow create: if isAuth();
       allow update: if isOwner(resource);
       allow delete: if isOwner(resource) && resource.data.mediaCount == 0;
 
       match /media/{mediaId} {
-        allow read: if canReadAlbum(env,
-          get(/databases/$(database)/documents/albums-$(env)/$(albumId)));
+        allow read: if canReadAlbum('groups-dev',
+          get(/databases/$(database)/documents/albums-dev/$(albumId)));
         allow create: if isAuth();
         allow update: if isAuth() && (
           request.auth.uid == resource.data.uploaderId ||
           request.auth.uid ==
-            get(/databases/$(database)/documents/albums-$(env)/$(albumId)).data.ownerId
+            get(/databases/$(database)/documents/albums-dev/$(albumId)).data.ownerId
         );
         allow delete: if isAuth() && (
           request.auth.uid == resource.data.uploaderId ||
           request.auth.uid ==
-            get(/databases/$(database)/documents/albums-$(env)/$(albumId)).data.ownerId
+            get(/databases/$(database)/documents/albums-dev/$(albumId)).data.ownerId
+        );
+      }
+    }
+
+    // ── Prod environment ─────────────────────────────────────────────────────
+
+    match /users-prod/{uid} {
+      allow read, write: if isAuth() && request.auth.uid == uid;
+    }
+
+    match /groups-prod/{groupId} {
+      allow read: if isAuth() && isGroupMember('groups-prod', groupId);
+      allow create: if isAuth();
+      allow update, delete: if isOwner(resource);
+    }
+
+    match /albums-prod/{albumId} {
+      allow read: if canReadAlbum('groups-prod', resource);
+      allow create: if isAuth();
+      allow update: if isOwner(resource);
+      allow delete: if isOwner(resource) && resource.data.mediaCount == 0;
+
+      match /media/{mediaId} {
+        allow read: if canReadAlbum('groups-prod',
+          get(/databases/$(database)/documents/albums-prod/$(albumId)));
+        allow create: if isAuth();
+        allow update: if isAuth() && (
+          request.auth.uid == resource.data.uploaderId ||
+          request.auth.uid ==
+            get(/databases/$(database)/documents/albums-prod/$(albumId)).data.ownerId
+        );
+        allow delete: if isAuth() && (
+          request.auth.uid == resource.data.uploaderId ||
+          request.auth.uid ==
+            get(/databases/$(database)/documents/albums-prod/$(albumId)).data.ownerId
         );
       }
     }
