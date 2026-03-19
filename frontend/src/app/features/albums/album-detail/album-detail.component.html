@@ -9,6 +9,14 @@
       <h1 class="page-title">{{ album()!.title }}</h1>
       <span class="media-count">{{ album()!.mediaCount }}</span>
     }
+    @if (isOwner()) {
+      <button class="icon-btn" title="Edit album" (click)="showEditForm.set(true)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </button>
+    }
     <button class="icon-btn upload-btn" title="Upload" (click)="showUpload.set(true)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
@@ -80,5 +88,13 @@
     [albumId]="albumId()"
     (done)="onUploadDone()"
     (cancelled)="showUpload.set(false)"
+  />
+}
+
+@if (showEditForm()) {
+  <app-album-form
+    [album]="album()"
+    (saved)="onEditSaved($event)"
+    (cancelled)="showEditForm.set(false)"
   />
 }

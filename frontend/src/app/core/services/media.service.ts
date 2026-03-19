@@ -1,7 +1,9 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { getApp } from 'firebase/app';
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+import { environment } from '../../../environments/environment';
 import { Media, ThumbnailStatus } from '../models';
 import { AuthService } from '../auth/auth.service';
 import { AlbumApiError, ApiError } from './album.service';
@@ -116,8 +118,9 @@ export class MediaService {
     mediaId: string,
     onUpdate: (status: ThumbnailStatus, thumbnailPath: string | null) => void
   ): () => void {
-    const db = getFirestore();
-    const ref = doc(db, 'albums', albumId, 'media', mediaId);
+    const db = getFirestore(getApp());
+    const albumsCol = environment.production ? 'albums-prod' : 'albums-dev';
+    const ref = doc(db, albumsCol, albumId, 'media', mediaId);
     return onSnapshot(ref, snapshot => {
       if (snapshot.exists()) {
         const data = snapshot.data();

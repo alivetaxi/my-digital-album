@@ -5,11 +5,12 @@ import { AlbumService } from '../../../core/services/album.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { MediaService } from '../../../core/services/media.service';
 import { UploadComponent } from '../../media/upload/upload.component';
+import { AlbumFormComponent } from '../album-form/album-form.component';
 
 @Component({
   selector: 'app-album-detail',
   standalone: true,
-  imports: [RouterLink, UploadComponent],
+  imports: [RouterLink, UploadComponent, AlbumFormComponent],
   templateUrl: './album-detail.component.html',
   styleUrl: './album-detail.component.scss',
 })
@@ -31,6 +32,7 @@ export class AlbumDetailComponent implements OnInit, OnDestroy {
   readonly nextCursor = signal<string | null>(null);
   readonly loadError = signal(false);
   readonly showUpload = signal(false);
+  readonly showEditForm = signal(false);
 
   readonly sentinel = viewChild<ElementRef>('sentinel');
 
@@ -137,6 +139,11 @@ export class AlbumDetailComponent implements OnInit, OnDestroy {
     }, { rootMargin: '200px' });
 
     this.observer.observe(sentinelEl);
+  }
+
+  onEditSaved(updated: Album) {
+    this.album.set(updated);
+    this.showEditForm.set(false);
   }
 
   async setCoverMedia(mediaId: string) {
