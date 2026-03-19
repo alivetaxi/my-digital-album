@@ -50,9 +50,7 @@ export class AlbumListComponent implements OnInit {
     this.showForm.set(true);
   }
 
-  openEditForm(album: Album, event: Event) {
-    event.preventDefault();
-    event.stopPropagation();
+  openEditForm(album: Album) {
     this.editingAlbum.set(album);
     this.showForm.set(true);
   }
@@ -73,9 +71,7 @@ export class AlbumListComponent implements OnInit {
     this.editingAlbum.set(null);
   }
 
-  async deleteAlbum(album: Album, event: Event) {
-    event.preventDefault();
-    event.stopPropagation();
+  async deleteAlbum(album: Album) {
     this.deleteError.set(null);
     if (!confirm(`Delete "${album.title}"? This cannot be undone.`)) return;
     try {
