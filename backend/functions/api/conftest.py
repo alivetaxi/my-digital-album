@@ -1,11 +1,14 @@
 """Shared test fixtures for the API."""
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
+
+os.environ.setdefault("ENVIRONMENT", "dev")
 
 from main import app
 from shared.auth import get_uid, require_auth
@@ -86,6 +89,7 @@ def make_album(
             "visibility": visibility,
             "mediaCount": media_count,
             "coverMediaId": cover_media_id,
+            "coverThumbnailPath": None,
             "groupId": group_id,
             "createdAt": datetime(2024, 1, 1, tzinfo=timezone.utc),
             "updatedAt": datetime(2024, 1, 1, tzinfo=timezone.utc),
@@ -144,12 +148,14 @@ def build_db(
     # collection("groups")
     groups_col = MagicMock()
 
+    env = os.environ.get("ENVIRONMENT", "dev")
+
     def _collection(name):
-        if name == "albums":
+        if name == f"albums-{env}":
             return albums_col
-        if name == "users":
+        if name == f"users-{env}":
             return users_col
-        if name == "groups":
+        if name == f"groups-{env}":
             return groups_col
         return MagicMock()
 

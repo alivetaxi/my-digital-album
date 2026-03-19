@@ -107,7 +107,7 @@ class TestRequestUploadUrl:
         client.post(f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS)
 
         set_call = (
-            db.collection("albums")
+            db.collection("albums-dev")
             .document()
             .collection()
             .document()
@@ -243,7 +243,7 @@ class TestDeleteMedia:
         resp = client.delete(f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}")
         assert resp.status_code == 200
         assert resp.json()["deleted"] is True
-        db.collection("albums").document().collection().document().delete.assert_called_once()
+        db.collection("albums-dev").document().collection().document().delete.assert_called_once()
 
     def test_album_owner_can_delete(self, client, mocker):
         album = make_album(owner=TEST_UID, visibility="private")
@@ -274,7 +274,7 @@ class TestDeleteMedia:
 
         client.delete(f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}")
 
-        update_call = db.collection("albums").document.return_value.update
+        update_call = db.collection("albums-dev").document.return_value.update
         call_kwargs = update_call.call_args[0][0]
         from google.cloud.firestore_v1 import transforms
         assert "mediaCount" in call_kwargs

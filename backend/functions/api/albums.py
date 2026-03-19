@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from shared.access import can_read_album
 from shared.auth import get_uid, require_auth
-from shared.db import get_db
+from shared.db import get_col, get_db
 from shared.errors import error_response
 
 router = APIRouter(prefix="/albums", tags=["albums"])
@@ -32,12 +32,14 @@ class UpdateAlbumBody(BaseModel):
 
 
 def _serialize(data: dict) -> dict:
-    """Convert Firestore Timestamp fields to ISO strings."""
+    """Convert Firestore Timestamp fields to ISO strings and compute derived URLs."""
     out = dict(data)
     for field in ("createdAt", "updatedAt"):
         v = out.get(field)
         if v is not None and hasattr(v, "isoformat"):
             out[field] = v.isoformat()
+    thumb_path = out.get("coverThumbnailPath")
+    out["coverThumbnailUrl"] = f"/api/thumbnail/{thumb_path}" if thumb_path else None
     return out
 
 
@@ -51,20 +53,20 @@ def list_albums(uid: str | None = Depends(get_uid)):
 
     if uid:
         mine_docs = (
-            db.collection("albums")
+            db.collection(get_col("albums"))
             .where("ownerId", "==", uid)
             .order_by("updatedAt", direction=firestore.Query.DESCENDING)
             .stream()
         )
         mine = [_serialize({**d.to_dict(), "id": d.id}) for d in mine_docs]
 
-        user_doc = db.collection("users").document(uid).get()
+        user_doc = db.collection(get_col("users")).document(uid).get()
         group_ids: list[str] = (
             user_doc.to_dict().get("groupIds", []) if user_doc.exists else []
         )
         if group_ids:
             shared_docs = (
-                db.collection("albums")
+                db.collection(get_col("albums"))
                 .where("visibility", "==", "group")
                 .where("groupId", "in", group_ids)
                 .order_by("updatedAt", direction=firestore.Query.DESCENDING)
@@ -77,7 +79,7 @@ def list_albums(uid: str | None = Depends(get_uid)):
             ]
 
     public_docs = (
-        db.collection("albums")
+        db.collection(get_col("albums"))
         .where("visibility", "==", "public")
         .order_by("updatedAt", direction=firestore.Query.DESCENDING)
         .stream()
@@ -109,14 +111,14 @@ def create_album(body: CreateAlbumBody, uid: str = Depends(require_auth)):
         "createdAt": now,
         "updatedAt": now,
     }
-    db.collection("albums").document(album_id).set(data)
+    db.collection(get_col("albums")).document(album_id).set(data)
     return _serialize(data)
 
 
 @router.get("/{album_id}")
 def get_album(album_id: str, uid: str | None = Depends(get_uid)):
     db = get_db()
-    doc = db.collection("albums").document(album_id).get()
+    doc = db.collection(get_col("albums")).document(album_id).get()
 
     if not doc.exists:
         return error_response("ALBUM_NOT_FOUND")
@@ -134,7 +136,7 @@ def update_album(
     album_id: str, body: UpdateAlbumBody, uid: str = Depends(require_auth)
 ):
     db = get_db()
-    ref = db.collection("albums").document(album_id)
+    ref = db.collection(get_col("albums")).document(album_id)
     doc = ref.get()
 
     if not doc.exists:
@@ -149,6 +151,9 @@ def update_album(
         updates["title"] = body.title
     if body.coverMediaId is not None:
         updates["coverMediaId"] = body.coverMediaId
+        media_doc = ref.collection("media").document(body.coverMediaId).get()
+        thumb_path = media_doc.to_dict().get("thumbnailPath") if media_doc.exists else None
+        updates["coverThumbnailPath"] = thumb_path
     if body.visibility is not None:
         updates["visibility"] = body.visibility
     if body.groupId is not None:
@@ -161,7 +166,7 @@ def update_album(
 @router.delete("/{album_id}")
 def delete_album(album_id: str, uid: str = Depends(require_auth)):
     db = get_db()
-    ref = db.collection("albums").document(album_id)
+    ref = db.collection(get_col("albums")).document(album_id)
     doc = ref.get()
 
     if not doc.exists:

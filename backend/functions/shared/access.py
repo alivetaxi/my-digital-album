@@ -1,6 +1,8 @@
 """Album access-control helpers shared by api and thumbnail."""
 from __future__ import annotations
 
+from shared.db import get_col
+
 
 def can_read_album(
     album: dict, uid: str | None, db
@@ -25,7 +27,7 @@ def can_read_album(
     if vis == "group":
         group_id = album.get("groupId")
         if group_id:
-            group = db.collection("groups").document(group_id).get()
+            group = db.collection(get_col("groups")).document(group_id).get()
             if group.exists and uid in group.to_dict().get("memberIds", []):
                 return True, None
         return False, "NOT_GROUP_MEMBER"

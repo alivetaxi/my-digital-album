@@ -110,7 +110,7 @@ class TestCreateAlbum:
         assert data["visibility"] == "private"
         assert data["mediaCount"] == 0
         assert "id" in data
-        db.collection("albums").document.return_value.set.assert_called_once()
+        db.collection("albums-dev").document.return_value.set.assert_called_once()
 
     def test_unauthenticated_returns_401(self, anon_client, mocker):
         resp = anon_client.post("/api/albums", json={"title": "X"})
@@ -201,7 +201,20 @@ class TestUpdateAlbum:
         resp = client.patch(f"/api/albums/{ALBUM_ID}", json={"title": "New Title"})
         assert resp.status_code == 200
         assert resp.json()["title"] == "New Title"
-        db.collection("albums").document.return_value.update.assert_called_once()
+        db.collection("albums-dev").document.return_value.update.assert_called_once()
+
+    def test_setting_cover_stores_thumbnail_path(self, client, mocker):
+        album = make_album(owner=TEST_UID)
+        media = make_media()  # thumbnailPath = "media/user-111/album-abc/mediahash123/thumbnail.jpg"
+        db = build_db(album_doc=album, media_doc=media)
+        mocker.patch("albums.get_db", return_value=db)
+
+        resp = client.patch(f"/api/albums/{ALBUM_ID}", json={"coverMediaId": MEDIA_ID})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["coverMediaId"] == MEDIA_ID
+        assert data["coverThumbnailUrl"] is not None
+        assert "thumbnail.jpg" in data["coverThumbnailUrl"]
 
     def test_owner_can_change_visibility(self, client, mocker):
         album = make_album(owner=TEST_UID, visibility="private")
@@ -246,7 +259,7 @@ class TestDeleteAlbum:
         resp = client.delete(f"/api/albums/{ALBUM_ID}")
         assert resp.status_code == 200
         assert resp.json()["deleted"] is True
-        db.collection("albums").document.return_value.delete.assert_called_once()
+        db.collection("albums-dev").document.return_value.delete.assert_called_once()
 
     def test_album_not_empty_returns_400(self, client, mocker):
         album = make_album(owner=TEST_UID, media_count=3)

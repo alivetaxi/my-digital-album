@@ -157,15 +157,21 @@ def _extract_exif(img) -> dict:
         return {}
 
 
-def _update_media(album_id: str, media_id: str, fields: dict) -> None:
+def _col(name: str) -> str:
+    env = os.environ.get("ENVIRONMENT", "dev")
+    return f"{name}-{env}"
+
+
+def _get_db():
     from google.cloud import firestore
 
-    db = firestore.Client(
-        project=os.environ.get("GCP_PROJECT_ID"),
-        database=os.environ.get("FIRESTORE_DATABASE", "(default)"),
-    )
+    return firestore.Client(project=os.environ.get("GCP_PROJECT_ID"))
+
+
+def _update_media(album_id: str, media_id: str, fields: dict) -> None:
+    db = _get_db()
     (
-        db.collection("albums")
+        db.collection(_col("albums"))
         .document(album_id)
         .collection("media")
         .document(media_id)
@@ -176,11 +182,8 @@ def _update_media(album_id: str, media_id: str, fields: dict) -> None:
 def _increment_media_count(album_id: str) -> None:
     from google.cloud import firestore
 
-    db = firestore.Client(
-        project=os.environ.get("GCP_PROJECT_ID"),
-        database=os.environ.get("FIRESTORE_DATABASE", "(default)"),
-    )
-    db.collection("albums").document(album_id).update(
+    db = _get_db()
+    db.collection(_col("albums")).document(album_id).update(
         {
             "mediaCount": firestore.Increment(1),
             "updatedAt": datetime.now(timezone.utc),

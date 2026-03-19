@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from shared.access import can_read_album
 from shared.auth import get_uid, require_auth
-from shared.db import get_db
+from shared.db import get_col, get_db
 from shared.errors import error_response
 from shared.storage import generate_upload_url, get_storage_client
 
@@ -58,7 +58,7 @@ def list_media(
     uid: str | None = Depends(get_uid),
 ):
     db = get_db()
-    album_doc = db.collection("albums").document(album_id).get()
+    album_doc = db.collection(get_col("albums")).document(album_id).get()
 
     if not album_doc.exists:
         return error_response("ALBUM_NOT_FOUND")
@@ -67,7 +67,7 @@ def list_media(
     if not allowed:
         return error_response(err)
 
-    media_ref = db.collection("albums").document(album_id).collection("media")
+    media_ref = db.collection(get_col("albums")).document(album_id).collection("media")
     query = media_ref.order_by("createdAt", direction=firestore.Query.DESCENDING)
 
     if after:
@@ -93,7 +93,7 @@ def request_upload_url(
     uid: str = Depends(require_auth),
 ):
     db = get_db()
-    album_doc = db.collection("albums").document(album_id).get()
+    album_doc = db.collection(get_col("albums")).document(album_id).get()
 
     if not album_doc.exists:
         return error_response("ALBUM_NOT_FOUND")
@@ -115,7 +115,7 @@ def request_upload_url(
         storage_path = f"media/{uid}/{album_id}/{media_id}/original.{ext}"
 
         (
-            db.collection("albums")
+            db.collection(get_col("albums"))
             .document(album_id)
             .collection("media")
             .document(media_id)
@@ -152,13 +152,13 @@ def update_media(
     uid: str = Depends(require_auth),
 ):
     db = get_db()
-    album_doc = db.collection("albums").document(album_id).get()
+    album_doc = db.collection(get_col("albums")).document(album_id).get()
 
     if not album_doc.exists:
         return error_response("ALBUM_NOT_FOUND")
 
     media_ref = (
-        db.collection("albums").document(album_id).collection("media").document(media_id)
+        db.collection(get_col("albums")).document(album_id).collection("media").document(media_id)
     )
     media_doc = media_ref.get()
 
@@ -186,7 +186,7 @@ def delete_media(
     uid: str = Depends(require_auth),
 ):
     db = get_db()
-    album_ref = db.collection("albums").document(album_id)
+    album_ref = db.collection(get_col("albums")).document(album_id)
     album_doc = album_ref.get()
 
     if not album_doc.exists:

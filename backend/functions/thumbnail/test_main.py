@@ -196,7 +196,7 @@ class TestFirestoreHelpers:
         with patch("google.cloud.firestore.Client", return_value=mock_db):
             thumb._update_media("album-1", "media-1", {"thumbnailStatus": "ready"})
 
-        mock_db.collection.assert_called_with("albums")
+        mock_db.collection.assert_called_with("albums-dev")
         doc_ref = mock_db.collection().document().collection().document()
         doc_ref.update.assert_called_once_with({"thumbnailStatus": "ready"})
 

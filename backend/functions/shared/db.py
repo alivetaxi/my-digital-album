@@ -1,4 +1,4 @@
-"""Firestore client singleton."""
+"""Firestore client singleton and collection name helpers."""
 from __future__ import annotations
 
 import os
@@ -13,6 +13,11 @@ def get_db() -> firestore.Client:
     if _db is None:
         _db = firestore.Client(
             project=os.environ.get("GCP_PROJECT_ID"),
-            database=os.environ.get("FIRESTORE_DATABASE", "(default)"),
         )
     return _db
+
+
+def get_col(name: str) -> str:
+    """Return the environment-scoped collection name, e.g. 'albums-dev'."""
+    env = os.environ.get("ENVIRONMENT", "dev")
+    return f"{name}-{env}"
