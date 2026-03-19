@@ -18,6 +18,12 @@
       <button class="retry-btn" (click)="ngOnInit()">Retry</button>
     </div>
   } @else {
+    @if (deleteError()) {
+      <div class="delete-error-banner" role="alert">
+        {{ deleteError() }}
+        <button class="dismiss-btn" (click)="deleteError.set(null)">✕</button>
+      </div>
+    }
     @if (myAlbums().length > 0) {
       <section class="album-section">
         <h2 class="section-title">My Albums</h2>

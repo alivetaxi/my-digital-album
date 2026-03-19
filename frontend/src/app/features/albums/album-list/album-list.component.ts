@@ -1,7 +1,7 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Album } from '../../../core/models';
-import { AlbumService } from '../../../core/services/album.service';
+import { AlbumApiError, AlbumService } from '../../../core/services/album.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AlbumFormComponent } from '../album-form/album-form.component';
 
@@ -24,6 +24,7 @@ export class AlbumListComponent implements OnInit {
 
   readonly showForm = signal(false);
   readonly editingAlbum = signal<Album | null>(null);
+  readonly deleteError = signal<string | null>(null);
 
   async ngOnInit() {
     await this.loadAlbums();
@@ -73,12 +74,15 @@ export class AlbumListComponent implements OnInit {
 
   async deleteAlbum(album: Album, event: Event) {
     event.preventDefault();
+    this.deleteError.set(null);
     if (!confirm(`Delete "${album.title}"? This cannot be undone.`)) return;
     try {
       await this.albumService.deleteAlbum(album.id);
       this.myAlbums.update(list => list.filter(a => a.id !== album.id));
-    } catch {
-      // ignore — album may have media; server error is swallowed for now
+    } catch (err) {
+      if (err instanceof AlbumApiError) {
+        this.deleteError.set(err.api.message);
+      }
     }
   }
 
