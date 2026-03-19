@@ -118,6 +118,7 @@
   position: absolute;
   inset: 0;
   display: block;
+  z-index: 0;
 
   img {
     width: 100%;
@@ -181,6 +182,7 @@
   right: 6px;
   display: none;
   gap: 4px;
+  z-index: 1;
 }
 
 .album-card:hover .card-actions {

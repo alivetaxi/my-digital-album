@@ -78,9 +78,10 @@ export class AlbumListComponent implements OnInit {
       await this.albumService.deleteAlbum(album.id);
       this.myAlbums.update(list => list.filter(a => a.id !== album.id));
     } catch (err) {
-      if (err instanceof AlbumApiError) {
-        this.deleteError.set(err.api.message);
-      }
+      const message = err instanceof AlbumApiError
+        ? err.api.message
+        : 'Failed to delete album.';
+      this.deleteError.set(message);
     }
   }
 
