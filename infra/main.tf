@@ -50,11 +50,12 @@ resource "google_project_service" "apis" {
 }
 
 module "firestore" {
-  source      = "./modules/firestore"
-  project_id  = var.project_id
-  region      = var.region
-  environment = var.environment
-  depends_on  = [google_project_service.apis]
+  source            = "./modules/firestore"
+  project_id        = var.project_id
+  region            = var.region
+  environment       = var.environment
+  create_default_db = var.create_default_db
+  depends_on        = [google_project_service.apis]
 }
 
 module "storage" {

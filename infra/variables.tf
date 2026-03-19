@@ -18,6 +18,12 @@ variable "environment" {
   }
 }
 
+variable "create_default_db" {
+  description = "Set to true once to create the (default) Firestore database. Only needed on first apply; the database is shared across environments."
+  type        = bool
+  default     = false
+}
+
 variable "create_triggers" {
   description = "Set to true after Cloud Run services are deployed to create Eventarc triggers"
   type        = bool

@@ -6,11 +6,14 @@ locals {
   }
 }
 
+# Use the single (default) Firestore database (Spark free tier allows only one).
+# Collections are prefixed with the environment, e.g. albums-dev, albums-prod.
+# Only one module instance should set create_default_db = true to avoid conflicts.
+
 resource "google_firestore_database" "default" {
+  count       = var.create_default_db ? 1 : 0
   project     = var.project_id
-  # Named database per environment so both can coexist in the same GCP project.
-  # Note: only one "(default)" database is allowed per project.
-  name        = "album-${var.environment}"
+  name        = "(default)"
   location_id = var.region
   type        = "FIRESTORE_NATIVE"
 
@@ -21,8 +24,8 @@ resource "google_firestore_database" "default" {
 
 resource "google_firestore_index" "albums_owner_updated" {
   project    = var.project_id
-  database   = google_firestore_database.default.name
-  collection = "albums"
+  database   = "(default)"
+  collection = "albums-${var.environment}"
 
   fields {
     field_path = "ownerId"
@@ -36,8 +39,8 @@ resource "google_firestore_index" "albums_owner_updated" {
 
 resource "google_firestore_index" "albums_visibility_updated" {
   project    = var.project_id
-  database   = google_firestore_database.default.name
-  collection = "albums"
+  database   = "(default)"
+  collection = "albums-${var.environment}"
 
   fields {
     field_path = "visibility"
@@ -51,8 +54,8 @@ resource "google_firestore_index" "albums_visibility_updated" {
 
 resource "google_firestore_index" "albums_visibility_group_updated" {
   project    = var.project_id
-  database   = google_firestore_database.default.name
-  collection = "albums"
+  database   = "(default)"
+  collection = "albums-${var.environment}"
 
   fields {
     field_path = "visibility"
