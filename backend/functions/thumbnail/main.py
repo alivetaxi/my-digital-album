@@ -140,20 +140,33 @@ def _extract_exif(img) -> dict:
 
         raw = img.info.get("exif")
         if not raw:
+            logger.info("EXIF: no exif bytes in image info")
             return {}
 
         exif = piexif.load(raw)
+
+        # Log all available IFD keys to help debug missing fields
+        for ifd_name, ifd_data in exif.items():
+            if isinstance(ifd_data, dict) and ifd_data:
+                keys = list(ifd_data.keys())
+                logger.info("EXIF IFD %s keys: %s", ifd_name, keys)
+
+        gps_ifd = exif.get("GPS", {})
+        logger.info("EXIF GPS data: %s", gps_ifd)
+
         dt_bytes = exif.get("Exif", {}).get(piexif.ExifIFD.DateTimeOriginal)
         if not dt_bytes:
+            logger.info("EXIF: DateTimeOriginal not found")
             return {}
 
         dt_str = dt_bytes.decode("utf-8", errors="ignore").rstrip("\x00")
+        logger.info("EXIF: DateTimeOriginal = %s", dt_str)
         taken_at = datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S").replace(
             tzinfo=timezone.utc
         )
         return {"takenAt": taken_at}
     except Exception as exc:
-        logger.debug("EXIF extraction skipped: %s", exc)
+        logger.warning("EXIF extraction failed: %s", exc)
         return {}
 
 
