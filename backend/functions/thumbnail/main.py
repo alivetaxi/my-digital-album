@@ -96,6 +96,8 @@ def _process(
     }
     if exif.get("takenAt"):
         updates["takenAt"] = exif["takenAt"]
+    if exif.get("takenPlace") is not None:
+        updates["takenPlace"] = exif["takenPlace"]
 
     _update_media(album_id, media_id, updates)
     _increment_media_count(album_id)
@@ -135,7 +137,7 @@ def _process_image(
 
 
 def _extract_exif(img) -> dict:
-    """Extract takenAt from EXIF DateTimeOriginal; returns {} on any failure."""
+    """Extract takenAt and takenPlace from EXIF. Returns {} on any failure."""
     try:
         import piexif
 
@@ -145,30 +147,82 @@ def _extract_exif(img) -> dict:
             return {}
 
         exif = piexif.load(raw)
+        result: dict = {}
 
-        # Log all available IFD keys to help debug missing fields
-        for ifd_name, ifd_data in exif.items():
-            if isinstance(ifd_data, dict) and ifd_data:
-                keys = list(ifd_data.keys())
-                logger.info("EXIF IFD %s keys: %s", ifd_name, keys)
-
-        gps_ifd = exif.get("GPS", {})
-        logger.info("EXIF GPS data: %s", gps_ifd)
-
+        # takenAt
         dt_bytes = exif.get("Exif", {}).get(piexif.ExifIFD.DateTimeOriginal)
-        if not dt_bytes:
-            logger.info("EXIF: DateTimeOriginal not found")
-            return {}
+        if dt_bytes:
+            dt_str = dt_bytes.decode("utf-8", errors="ignore").rstrip("\x00")
+            logger.info("EXIF: DateTimeOriginal = %s", dt_str)
+            result["takenAt"] = datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S").replace(
+                tzinfo=timezone.utc
+            )
 
-        dt_str = dt_bytes.decode("utf-8", errors="ignore").rstrip("\x00")
-        logger.info("EXIF: DateTimeOriginal = %s", dt_str)
-        taken_at = datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S").replace(
-            tzinfo=timezone.utc
+        # takenPlace — GPS IFD
+        gps = exif.get("GPS", {})
+        lat = _gps_to_decimal(
+            gps.get(piexif.GPSIFD.GPSLatitude),
+            gps.get(piexif.GPSIFD.GPSLatitudeRef),
         )
-        return {"takenAt": taken_at}
+        lng = _gps_to_decimal(
+            gps.get(piexif.GPSIFD.GPSLongitude),
+            gps.get(piexif.GPSIFD.GPSLongitudeRef),
+        )
+        if lat is not None and lng is not None:
+            logger.info("EXIF: GPS lat=%s lng=%s", lat, lng)
+            place_name = _reverse_geocode(lat, lng)
+            result["takenPlace"] = {"lat": lat, "lng": lng, "placeName": place_name}
+        else:
+            logger.info("EXIF: no GPS data")
+
+        return result
     except Exception as exc:
         logger.warning("EXIF extraction failed: %s", exc)
         return {}
+
+
+def _gps_to_decimal(dms, ref) -> float | None:
+    """Convert EXIF GPS DMS rational tuple + ref byte to a signed decimal degree."""
+    if not dms or not ref:
+        return None
+    try:
+        def r(rational):
+            return rational[0] / rational[1]
+        degrees = r(dms[0]) + r(dms[1]) / 60 + r(dms[2]) / 3600
+        if ref in (b"S", b"W"):
+            degrees = -degrees
+        return round(degrees, 7)
+    except Exception as exc:
+        logger.warning("GPS DMS conversion failed: %s", exc)
+        return None
+
+
+def _reverse_geocode(lat: float, lng: float) -> str | None:
+    """Call Google Maps Geocoding API; returns a human-readable place name or None."""
+    import urllib.request
+    import urllib.parse
+    import json
+
+    api_key = os.environ.get("GEOCODING_API_KEY", "")
+    if not api_key:
+        logger.info("GEOCODING_API_KEY not set — skipping reverse geocode")
+        return None
+
+    params = urllib.parse.urlencode({"latlng": f"{lat},{lng}", "key": api_key})
+    url = f"https://maps.googleapis.com/maps/api/geocode/json?{params}"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read())
+        if data.get("status") != "OK" or not data.get("results"):
+            logger.warning("Geocoding returned status=%s", data.get("status"))
+            return None
+        # Use the first result's formatted_address as a concise place name
+        place_name = data["results"][0].get("formatted_address")
+        logger.info("Geocoding result: %s", place_name)
+        return place_name
+    except Exception as exc:
+        logger.warning("Reverse geocoding failed: %s", exc)
+        return None
 
 
 def _col(name: str) -> str:
