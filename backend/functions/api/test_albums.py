@@ -5,11 +5,13 @@ import pytest
 
 from conftest import (
     ALBUM_ID,
+    MEDIA_ID,
     OTHER_UID,
     TEST_UID,
     build_db,
     make_album,
     make_doc,
+    make_media,
 )
 
 
