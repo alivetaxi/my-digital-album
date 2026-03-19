@@ -5,7 +5,6 @@
 #   _ENV                — "dev" or "prod"
 #   _GCP_PROJECT_ID     — GCP project ID
 #   _SERVICE_ACCOUNT    — Cloud Run service account email
-#   _FIRESTORE_DATABASE — Firestore database ID
 #   _MEDIA_BUCKET       — GCS bucket for original media uploads
 #   _THUMBNAILS_BUCKET  — GCS bucket for generated thumbnails
 #
@@ -135,7 +134,6 @@ steps:
         export DEPLOY_ENV=$_ENV
         export DEPLOY_PROJECT=$_GCP_PROJECT_ID
         export DEPLOY_SERVICE_ACCOUNT=$_SERVICE_ACCOUNT
-        export DEPLOY_FIRESTORE_DB=$_FIRESTORE_DATABASE
         export DEPLOY_MEDIA_BUCKET=$_MEDIA_BUCKET
         export DEPLOY_THUMBNAILS_BUCKET=$_THUMBNAILS_BUCKET
         export DEPLOY_IMAGE_TAG=$COMMIT_SHA
@@ -154,7 +152,6 @@ steps:
         export DEPLOY_ENV=$_ENV
         export DEPLOY_PROJECT=$_GCP_PROJECT_ID
         export DEPLOY_SERVICE_ACCOUNT=$_SERVICE_ACCOUNT
-        export DEPLOY_FIRESTORE_DB=$_FIRESTORE_DATABASE
         export DEPLOY_MEDIA_BUCKET=$_MEDIA_BUCKET
         export DEPLOY_THUMBNAILS_BUCKET=$_THUMBNAILS_BUCKET
         export DEPLOY_IMAGE_TAG=$COMMIT_SHA

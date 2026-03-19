@@ -23,8 +23,6 @@ spec:
               value: "${DEPLOY_PROJECT}"
             - name: ENVIRONMENT
               value: "${DEPLOY_ENV}"
-            - name: FIRESTORE_DATABASE
-              value: "${DEPLOY_FIRESTORE_DB}"
             - name: MEDIA_BUCKET
               value: "${DEPLOY_MEDIA_BUCKET}"
             - name: THUMBNAILS_BUCKET

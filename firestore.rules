@@ -10,47 +10,47 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == resource.data.ownerId;
     }
 
-    function isGroupMember(groupId) {
+    function isGroupMember(env, groupId) {
       return isAuth() &&
         request.auth.uid in
-          get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+          get(/databases/$(database)/documents/groups-$(env)/$(groupId)).data.memberIds;
     }
 
-    function canReadAlbum(album) {
+    function canReadAlbum(env, album) {
       return album.data.visibility == 'public'
         || (isAuth() && album.data.ownerId == request.auth.uid)
-        || (album.data.visibility == 'group' && isGroupMember(album.data.groupId));
+        || (album.data.visibility == 'group' && isGroupMember(env, album.data.groupId));
     }
 
-    match /users/{uid} {
+    match /users-{env}/{uid} {
       allow read, write: if isAuth() && request.auth.uid == uid;
     }
 
-    match /groups/{groupId} {
-      allow read: if isAuth() && isGroupMember(groupId);
+    match /groups-{env}/{groupId} {
+      allow read: if isAuth() && isGroupMember(env, groupId);
       allow create: if isAuth();
       allow update, delete: if isOwner(resource);
     }
 
-    match /albums/{albumId} {
-      allow read: if canReadAlbum(resource);
+    match /albums-{env}/{albumId} {
+      allow read: if canReadAlbum(env, resource);
       allow create: if isAuth();
       allow update: if isOwner(resource);
       allow delete: if isOwner(resource) && resource.data.mediaCount == 0;
 
       match /media/{mediaId} {
-        allow read: if canReadAlbum(
-          get(/databases/$(database)/documents/albums/$(albumId)));
+        allow read: if canReadAlbum(env,
+          get(/databases/$(database)/documents/albums-$(env)/$(albumId)));
         allow create: if isAuth();
         allow update: if isAuth() && (
           request.auth.uid == resource.data.uploaderId ||
           request.auth.uid ==
-            get(/databases/$(database)/documents/albums/$(albumId)).data.ownerId
+            get(/databases/$(database)/documents/albums-$(env)/$(albumId)).data.ownerId
         );
         allow delete: if isAuth() && (
           request.auth.uid == resource.data.uploaderId ||
           request.auth.uid ==
-            get(/databases/$(database)/documents/albums/$(albumId)).data.ownerId
+            get(/databases/$(database)/documents/albums-$(env)/$(albumId)).data.ownerId
         );
       }
     }
