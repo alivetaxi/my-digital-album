@@ -45,6 +45,20 @@ resource "google_project_iam_member" "cloudbuild_firebase_hosting" {
   member  = local.cloudbuild_sa
 }
 
+# Deploy Firestore security rules
+resource "google_project_iam_member" "cloudbuild_firebase_rules" {
+  project = var.project_id
+  role    = "roles/firebaserules.admin"
+  member  = local.cloudbuild_sa
+}
+
+# Check/enable GCP APIs (required by Firebase CLI preflight checks)
+resource "google_project_iam_member" "cloudbuild_service_usage" {
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = local.cloudbuild_sa
+}
+
 # Write build logs to Cloud Logging
 resource "google_project_iam_member" "cloudbuild_log_writer" {
   project = var.project_id
