@@ -32,14 +32,16 @@ def generate_upload_url(
     credentials, _ = google.auth.default()
     credentials.refresh(google.auth.transport.requests.Request())
 
-    client = storage.Client(
-        credentials=credentials, project=os.environ.get("GCP_PROJECT_ID")
-    )
+    client = get_storage_client()
     blob = client.bucket(bucket_name).blob(blob_path)
+    # Compute Engine / Cloud Run credentials don't hold a private key, so we
+    # cannot sign locally.  Passing service_account_email + access_token tells
+    # the GCS library to call the IAM signBlob API instead.
     return blob.generate_signed_url(
         version="v4",
         expiration=datetime.timedelta(minutes=expiration_minutes),
         method="PUT",
         content_type=content_type,
-        credentials=credentials,
+        service_account_email=credentials.service_account_email,
+        access_token=credentials.token,
     )
