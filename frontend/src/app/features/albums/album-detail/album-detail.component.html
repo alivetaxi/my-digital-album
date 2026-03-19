@@ -19,31 +19,44 @@
 
   <div class="media-grid">
     @for (media of mediaItems(); track media.id) {
-      <a class="media-cell" [routerLink]="['/albums', albumId(), 'media', media.id]">
-        @if (media.thumbnailStatus === 'ready') {
-          <img [src]="media.thumbnailUrl!" [alt]="media.description ?? ''" loading="lazy" />
-          @if (media.type === 'video') {
-            <div class="video-overlay">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                <polygon points="5 3 19 12 5 21 5 3"/>
+      <div class="media-cell">
+        <a class="media-link" [routerLink]="['/albums', albumId(), 'media', media.id]">
+          @if (media.thumbnailStatus === 'ready') {
+            <img [src]="media.thumbnailUrl!" [alt]="media.description ?? ''" loading="lazy" />
+            @if (media.type === 'video') {
+              <div class="video-overlay">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+              </div>
+            }
+          } @else if (media.thumbnailStatus === 'pending') {
+            <div class="cell-pending skeleton">
+              <svg class="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              </svg>
+            </div>
+          } @else {
+            <div class="cell-failed">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
               </svg>
             </div>
           }
-        } @else if (media.thumbnailStatus === 'pending') {
-          <div class="cell-pending skeleton">
-            <svg class="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+        </a>
+        @if (isOwner() && media.thumbnailStatus === 'ready') {
+          <button
+            class="cover-btn"
+            [class.is-cover]="media.id === album()?.coverMediaId"
+            [title]="media.id === album()?.coverMediaId ? 'Current cover' : 'Set as cover'"
+            (click)="setCoverMedia(media.id)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
             </svg>
-          </div>
-        } @else {
-          <div class="cell-failed">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
-            </svg>
-          </div>
+          </button>
         }
-      </a>
+      </div>
     }
 
     @if (isLoading()) {

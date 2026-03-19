@@ -1,7 +1,8 @@
-import { Component, ElementRef, OnDestroy, OnInit, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, computed, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Album, Media } from '../../../core/models';
 import { AlbumService } from '../../../core/services/album.service';
+import { AuthService } from '../../../core/auth/auth.service';
 import { MediaService } from '../../../core/services/media.service';
 import { UploadComponent } from '../../media/upload/upload.component';
 
@@ -16,6 +17,12 @@ export class AlbumDetailComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly albumService = inject(AlbumService);
   private readonly mediaService = inject(MediaService);
+  private readonly auth = inject(AuthService);
+
+  readonly isOwner = computed(() => {
+    const album = this.album();
+    return album !== null && album.ownerId === this.auth.uid();
+  });
 
   readonly albumId = signal('');
   readonly album = signal<Album | null>(null);
@@ -130,6 +137,12 @@ export class AlbumDetailComponent implements OnInit, OnDestroy {
     }, { rootMargin: '200px' });
 
     this.observer.observe(sentinelEl);
+  }
+
+  async setCoverMedia(mediaId: string) {
+    const albumId = this.albumId();
+    const updated = await this.albumService.updateAlbum(albumId, { coverMediaId: mediaId });
+    this.album.set(updated);
   }
 
   trackById(_: number, media: Media) {

@@ -147,6 +147,13 @@
   display: flex;
 }
 
+// Touch devices have no hover — always show action buttons.
+@media (hover: none) {
+  .card-actions {
+    display: flex;
+  }
+}
+
 .card-action-btn {
   background: rgba(0, 0, 0, 0.55);
   border: none;
