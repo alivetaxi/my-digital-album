@@ -53,10 +53,10 @@ export class AuthService {
     });
   }
 
-  async signInWithGoogle(): Promise<void> {
+  async signInWithGoogle(returnUrl = '/albums'): Promise<void> {
     const provider = new GoogleAuthProvider();
     await signInWithPopup(this.firebaseAuth, provider);
-    this.router.navigate(['/albums']);
+    this.router.navigateByUrl(returnUrl);
   }
 
   async signOut(): Promise<void> {

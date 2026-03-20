@@ -38,6 +38,25 @@
       </div>
     </fieldset>
 
+    @if (visibility() === 'group') {
+      @if (groups().length === 0) {
+        <p class="group-hint">You're not in any groups yet. <a routerLink="/groups" (click)="cancel()">Create or join a group first.</a></p>
+      } @else {
+        <label class="field-label" for="group-select">Group</label>
+        <select
+          id="group-select"
+          class="select-input"
+          [value]="selectedGroupId() ?? ''"
+          (change)="selectedGroupId.set($any($event.target).value || null)"
+        >
+          <option value="">Select a group…</option>
+          @for (g of groups(); track g.id) {
+            <option [value]="g.id">{{ g.name }}</option>
+          }
+        </select>
+      }
+    }
+
     @if (errorMessage()) {
       <p class="error-msg">{{ errorMessage() }}</p>
     }
@@ -47,7 +66,7 @@
     <button class="btn-secondary" (click)="cancel()">Cancel</button>
     <button
       class="btn-primary"
-      [disabled]="isSaving() || !title().trim()"
+      [disabled]="isSaving() || !title().trim() || (visibility() === 'group' && !selectedGroupId())"
       (click)="save()"
     >
       @if (isSaving()) { Saving… } @else { {{ album() ? 'Save' : 'Create' }} }

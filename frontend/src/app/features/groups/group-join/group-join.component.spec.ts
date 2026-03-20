@@ -47,6 +47,19 @@ describe('GroupJoinComponent', () => {
     expect(component.token()).toBe('my-token');
   });
 
+  it('sets loginUrl with returnUrl when token is present', () => {
+    const { component } = createComponent('tok-abc');
+    component.ngOnInit();
+    expect(component.loginUrl()).toContain('/login?returnUrl=');
+    expect(component.loginUrl()).toContain('tok-abc');
+  });
+
+  it('loginUrl is /login when token is empty', () => {
+    const { component } = createComponent('');
+    component.ngOnInit();
+    expect(component.loginUrl()).toBe('/login');
+  });
+
   it('sets joined state on successful join', fakeAsync(async () => {
     const { component } = createComponent();
     component.ngOnInit();

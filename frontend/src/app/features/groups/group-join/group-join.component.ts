@@ -26,9 +26,14 @@ export class GroupJoinComponent implements OnInit {
 
   readonly isAuthenticated = this.auth.isAuthenticated;
 
+  readonly loginUrl = signal('/login');
+
   ngOnInit() {
     const token = this.route.snapshot.queryParamMap.get('token') ?? '';
     this.token.set(token);
+    if (token) {
+      this.loginUrl.set(`/login?returnUrl=/join?token=${encodeURIComponent(token)}`);
+    }
   }
 
   async join() {

@@ -1,4 +1,5 @@
 import { Component, inject } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 
 @Component({
@@ -10,10 +11,12 @@ import { AuthService } from '../../../core/auth/auth.service';
 })
 export class LoginComponent {
   private readonly auth = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
 
   readonly isLoading = this.auth.isLoading;
 
   signIn() {
-    this.auth.signInWithGoogle();
+    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/albums';
+    this.auth.signInWithGoogle(returnUrl);
   }
 }
