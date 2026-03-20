@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import io
-import json
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -192,23 +191,31 @@ class TestProcess:
 # ---------------------------------------------------------------------------
 
 class TestProcessVideo:
-    """Tests for _process_video — subprocess calls are always mocked."""
+    """Tests for _process_video — imageio_ffmpeg.read_frames and subprocess are mocked."""
 
-    def _make_frame_bytes(self) -> bytes:
-        """A minimal valid JPEG to simulate an ffmpeg-extracted frame."""
-        from PIL import Image
-        buf = io.BytesIO()
-        Image.new("RGB", (1280, 720)).save(buf, format="JPEG")
-        return buf.getvalue()
+    def _make_raw_frame(self, width: int = 1280, height: int = 720) -> bytes:
+        """Packed RGB bytes as imageio_ffmpeg.read_frames() would return."""
+        return bytes(width * height * 3)
+
+    def _make_reader(self, meta: dict, frame: bytes | None = None):
+        """Return a generator that mimics imageio_ffmpeg.read_frames()."""
+        def _gen():
+            yield meta
+            if frame is not None:
+                yield frame
+        return _gen()
+
+    def _no_tags_subprocess(self, mocker):
+        mocker.patch(
+            "thumbnail.main.subprocess.run",
+            return_value=MagicMock(returncode=1, stderr="", stdout=""),
+        )
 
     def test_happy_path_returns_thumbnail_and_dimensions(self, mocker):
-        frame = self._make_frame_bytes()
-        mocker.patch("thumbnail.main.subprocess.run", side_effect=[
-            # ffprobe call
-            MagicMock(returncode=0, stdout='{"streams":[{"codec_type":"video","width":1280,"height":720,"duration":"10.5"}],"format":{"tags":{}}}', stderr=""),
-            # ffmpeg frame extraction (seek=00:00:01)
-            MagicMock(returncode=0, stdout=frame, stderr=""),
-        ])
+        frame = self._make_raw_frame(1280, 720)
+        meta = {"size": (1280, 720), "duration": 10.5, "fps": 30.0}
+        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        self._no_tags_subprocess(mocker)
 
         thumbnail_bytes, width, height, duration, metadata = thumb._process_video(b"fake-video")
 
@@ -221,54 +228,46 @@ class TestProcessVideo:
         img = Image.open(io.BytesIO(thumbnail_bytes))
         assert img.width == 400  # resized to THUMBNAIL_WIDTH
 
-    def test_falls_back_to_first_frame_for_short_clip(self, mocker):
-        frame = self._make_frame_bytes()
-        mocker.patch("thumbnail.main.subprocess.run", side_effect=[
-            # ffprobe
-            MagicMock(returncode=0, stdout='{"streams":[],"format":{"tags":{}}}', stderr=""),
-            # ffmpeg seek=00:00:01 fails
-            MagicMock(returncode=1, stdout=b"", stderr=""),
-            # ffmpeg seek=00:00:00 succeeds
-            MagicMock(returncode=0, stdout=frame, stderr=""),
-        ])
-
-        thumbnail_bytes, *_ = thumb._process_video(b"fake-video")
-        assert len(thumbnail_bytes) > 0
-
     def test_no_extractable_frame_raises_corrupted(self, mocker):
-        mocker.patch("thumbnail.main.subprocess.run", side_effect=[
-            MagicMock(returncode=0, stdout='{"streams":[],"format":{"tags":{}}}', stderr=""),
-            MagicMock(returncode=1, stdout=b"", stderr=""),
-            MagicMock(returncode=1, stdout=b"", stderr=""),
-        ])
+        # reader yields meta but no frames
+        meta = {"size": (1280, 720), "duration": 5.0}
+        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, None))
+        self._no_tags_subprocess(mocker)
 
         with pytest.raises(thumb.CorruptedFileError):
             thumb._process_video(b"corrupt-video")
 
+    def test_zero_width_raises_corrupted(self, mocker):
+        frame = self._make_raw_frame(1280, 720)
+        meta = {"size": (0, 0), "duration": None}
+        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        self._no_tags_subprocess(mocker)
+
+        with pytest.raises(thumb.CorruptedFileError):
+            thumb._process_video(b"fake-video")
+
     def test_extracts_creation_time_as_taken_at(self, mocker):
-        frame = self._make_frame_bytes()
-        probe_json = json.dumps({
-            "streams": [{"codec_type": "video", "width": 640, "height": 480}],
-            "format": {"tags": {"creation_time": "2023-06-15T10:30:00.000000Z"}},
-        })
-        mocker.patch("thumbnail.main.subprocess.run", side_effect=[
-            MagicMock(returncode=0, stdout=probe_json, stderr=""),
-            MagicMock(returncode=0, stdout=frame, stderr=""),
-        ])
+        frame = self._make_raw_frame(640, 480)
+        meta = {"size": (640, 480), "duration": 5.0}
+        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        stderr = "    creation_time   : 2023-06-15T10:30:00.000000Z\n"
+        mocker.patch(
+            "thumbnail.main.subprocess.run",
+            return_value=MagicMock(returncode=1, stderr=stderr, stdout=""),
+        )
 
         _, _, _, _, metadata = thumb._process_video(b"fake-video")
         assert metadata["takenAt"] == datetime(2023, 6, 15, 10, 30, 0, tzinfo=timezone.utc)
 
     def test_extracts_gps_location_as_taken_place(self, mocker):
-        frame = self._make_frame_bytes()
-        probe_json = json.dumps({
-            "streams": [{"codec_type": "video", "width": 640, "height": 480}],
-            "format": {"tags": {"location": "+35.6894+139.6917+40/"}},
-        })
-        mocker.patch("thumbnail.main.subprocess.run", side_effect=[
-            MagicMock(returncode=0, stdout=probe_json, stderr=""),
-            MagicMock(returncode=0, stdout=frame, stderr=""),
-        ])
+        frame = self._make_raw_frame(640, 480)
+        meta = {"size": (640, 480), "duration": 5.0}
+        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        stderr = "    location        : +35.6894+139.6917+40/\n"
+        mocker.patch(
+            "thumbnail.main.subprocess.run",
+            return_value=MagicMock(returncode=1, stderr=stderr, stdout=""),
+        )
         mocker.patch("thumbnail.main._reverse_geocode", return_value="Tokyo, Japan")
 
         _, _, _, _, metadata = thumb._process_video(b"fake-video")

@@ -152,26 +152,65 @@ def _get_ffmpeg_exe() -> str:
         return "ffmpeg"
 
 
-def _get_ffprobe_exe() -> str:
-    """Return path to ffprobe; derives it from imageio-ffmpeg's ffmpeg path."""
-    try:
-        import imageio_ffmpeg
-        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-        # imageio-ffmpeg static builds ship both ffmpeg and ffprobe side-by-side
-        ffprobe = ffmpeg_exe.replace("ffmpeg", "ffprobe")
-        if os.path.exists(ffprobe):
-            return ffprobe
-    except Exception:
-        pass
-    return "ffprobe"  # fall back to system ffprobe
+def _extract_video_tags(video_path: str) -> dict:
+    """Run ffmpeg -i and parse stderr for creation_time and location tags.
+
+    ffmpeg always exits non-zero when no output file is given — that's expected.
+    """
+    result = subprocess.run(
+        [_get_ffmpeg_exe(), "-hide_banner", "-i", video_path],
+        capture_output=True, text=True, timeout=15,
+    )
+    stderr = result.stderr
+    tags: dict = {}
+
+    m = re.search(r"creation_time\s*:\s*(\S+)", stderr)
+    if m:
+        tags["creation_time"] = m.group(1)
+
+    m = re.search(
+        r"(?:location|com\.apple\.quicktime\.location\.ISO6709)\s*:\s*(\S+)", stderr
+    )
+    if m:
+        tags["location"] = m.group(1)
+
+    return tags
+
+
+def _parse_video_tags(tags: dict) -> dict:
+    """Convert raw tag strings (creation_time, location) to metadata dict."""
+    metadata: dict = {}
+
+    creation_time = tags.get("creation_time")
+    if creation_time:
+        try:
+            clean = creation_time.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(clean)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            metadata["takenAt"] = dt
+            logger.info("Video creation_time: %s", creation_time)
+        except Exception as exc:
+            logger.warning("Video creation_time parse failed: %s", exc)
+
+    location = tags.get("location")
+    if location:
+        lat, lng = _parse_iso6709(location)
+        if lat is not None and lng is not None:
+            logger.info("Video GPS lat=%s lng=%s", lat, lng)
+            place_name = _reverse_geocode(lat, lng)
+            metadata["takenPlace"] = {"lat": lat, "lng": lng, "placeName": place_name}
+
+    return metadata
 
 
 def _process_video(file_bytes: bytes) -> tuple[bytes, int, int, float | None, dict]:
-    """Extract thumbnail frame and metadata from video via ffmpeg/ffprobe.
+    """Extract thumbnail frame and metadata from video via imageio-ffmpeg.
 
+    Uses imageio_ffmpeg.read_frames() for frame/dimensions/duration (no ffprobe
+    required) and ffmpeg -i stderr for creation_time / location tags.
     Returns (jpeg_bytes, width, height, duration_seconds, metadata).
     """
-    # Write to a temp file — ffmpeg/ffprobe require a seekable file path
     tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
     try:
         tmp.write(file_bytes)
@@ -179,55 +218,45 @@ def _process_video(file_bytes: bytes) -> tuple[bytes, int, int, float | None, di
         tmp.close()
         video_path = tmp.name
 
-        # --- metadata via ffprobe ---
-        probe = subprocess.run(
-            [
-                _get_ffprobe_exe(), "-v", "quiet",
-                "-print_format", "json",
-                "-show_streams", "-show_format",
-                video_path,
-            ],
-            capture_output=True, text=True, timeout=30,
-        )
-        probe_data = json.loads(probe.stdout) if probe.returncode == 0 else {}
-        if probe.returncode != 0:
-            logger.warning("ffprobe failed: %s", probe.stderr)
+        # --- metadata tags from ffmpeg stderr ---
+        tags = _extract_video_tags(video_path)
+        metadata = _parse_video_tags(tags)
 
-        width, height, duration, metadata = _extract_video_metadata(probe_data)
+        # --- frame + dimensions/duration via imageio_ffmpeg (no ffprobe) ---
+        import imageio_ffmpeg
 
-        # --- thumbnail frame via ffmpeg ---
-        # Try 1 second in; fall back to very first frame for short clips
+        width = height = 0
+        duration: float | None = None
         frame_bytes: bytes | None = None
-        for seek in ("00:00:01", "00:00:00"):
-            result = subprocess.run(
-                [
-                    _get_ffmpeg_exe(), "-y", "-ss", seek, "-i", video_path,
-                    "-vframes", "1",
-                    "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1",
-                ],
-                capture_output=True, timeout=60,
-            )
-            if result.returncode == 0 and result.stdout:
-                frame_bytes = result.stdout
-                break
 
-        if not frame_bytes:
+        reader = imageio_ffmpeg.read_frames(video_path)
+        try:
+            meta = next(reader)  # first yield is a metadata dict
+            w, h = meta.get("size", (0, 0))
+            width, height = int(w), int(h)
+            raw_dur = meta.get("duration")
+            if raw_dur:
+                try:
+                    duration = float(raw_dur)
+                except (ValueError, TypeError):
+                    pass
+            for raw_frame in reader:
+                frame_bytes = raw_frame  # packed RGB bytes
+                break
+        except StopIteration:
+            pass
+        finally:
+            reader.close()
+
+        if not frame_bytes or width == 0:
             raise CorruptedFileError("Could not extract frame from video")
 
-        # Resize frame to THUMBNAIL_WIDTH (keep aspect ratio)
         from PIL import Image
 
-        img = Image.open(io.BytesIO(frame_bytes))
-        orig_w, orig_h = img.size
-        if orig_w == 0:
-            raise CorruptedFileError("Video frame has zero width")
-        # Use probe dimensions if PIL reports 0
-        if width == 0:
-            width = orig_w
-        if height == 0:
-            height = orig_h
-        new_h = int(orig_h * THUMBNAIL_WIDTH / orig_w)
-        thumbnail = img.convert("RGB").resize((THUMBNAIL_WIDTH, new_h), Image.LANCZOS)
+        # raw_frame is packed RGB bytes matching (width, height)
+        img = Image.frombytes("RGB", (width, height), frame_bytes)
+        new_h = int(height * THUMBNAIL_WIDTH / width)
+        thumbnail = img.resize((THUMBNAIL_WIDTH, new_h), Image.LANCZOS)
         buf = io.BytesIO()
         thumbnail.save(buf, format="JPEG", quality=85)
 
@@ -245,60 +274,6 @@ def _process_video(file_bytes: bytes) -> tuple[bytes, int, int, float | None, di
             os.unlink(tmp.name)
         except Exception:
             pass
-
-
-def _extract_video_metadata(probe_data: dict) -> tuple[int, int, float | None, dict]:
-    """Parse ffprobe JSON into (width, height, duration, metadata-dict)."""
-    try:
-        width = height = 0
-        duration: float | None = None
-        metadata: dict = {}
-
-        streams = probe_data.get("streams", [])
-        fmt = probe_data.get("format", {})
-
-        for stream in streams:
-            if stream.get("codec_type") == "video":
-                width = stream.get("width", 0)
-                height = stream.get("height", 0)
-                raw_dur = stream.get("duration") or fmt.get("duration")
-                if raw_dur:
-                    try:
-                        duration = float(raw_dur)
-                    except (ValueError, TypeError):
-                        pass
-                break
-
-        # takenAt from format tags
-        tags = fmt.get("tags", {})
-        for key in ("creation_time", "com.apple.quicktime.creationdate"):
-            creation_time = tags.get(key)
-            if creation_time:
-                try:
-                    # ISO 8601: "2023-06-15T10:30:00.000000Z" or without Z
-                    clean = creation_time.replace("Z", "+00:00")
-                    dt = datetime.fromisoformat(clean)
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    metadata["takenAt"] = dt
-                    logger.info("Video creation_time: %s", creation_time)
-                except Exception as exc:
-                    logger.warning("Video creation_time parse failed: %s", exc)
-                break
-
-        # takenPlace from ISO 6709 location tag
-        location = tags.get("location") or tags.get("com.apple.quicktime.location.ISO6709")
-        if location:
-            lat, lng = _parse_iso6709(location)
-            if lat is not None and lng is not None:
-                logger.info("Video GPS lat=%s lng=%s", lat, lng)
-                place_name = _reverse_geocode(lat, lng)
-                metadata["takenPlace"] = {"lat": lat, "lng": lng, "placeName": place_name}
-
-        return width, height, duration, metadata
-    except Exception as exc:
-        logger.warning("Video metadata extraction failed: %s", exc)
-        return 0, 0, None, {}
 
 
 def _parse_iso6709(location: str) -> tuple[float | None, float | None]:
