@@ -8,6 +8,8 @@ import {
   onAuthStateChanged,
   User,
 } from 'firebase/auth';
+import { doc, getFirestore, setDoc } from 'firebase/firestore';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -27,6 +29,27 @@ export class AuthService {
   constructor() {
     onAuthStateChanged(this.firebaseAuth, (user) => {
       this._user.set(user);
+      if (user) {
+        this._syncProfile(user);
+      }
+    });
+  }
+
+  /** Write displayName / email / photoURL to Firestore so group member lists can show them. */
+  private _syncProfile(user: User): void {
+    const db = getFirestore();
+    const col = `users-${environment.production ? 'prod' : 'dev'}`;
+    setDoc(
+      doc(db, col, user.uid),
+      {
+        uid: user.uid,
+        displayName: user.displayName ?? '',
+        email: user.email ?? '',
+        photoURL: user.photoURL ?? '',
+      },
+      { merge: true },
+    ).catch(() => {
+      // Non-critical — silently ignore; member list will fall back to uid only
     });
   }
 

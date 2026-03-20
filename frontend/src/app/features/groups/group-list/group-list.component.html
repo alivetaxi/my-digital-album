@@ -1,0 +1,91 @@
+<div class="page">
+  <header class="page-header">
+    <h1 class="page-title">Groups</h1>
+    @if (auth.isAuthenticated()) {
+      <button class="btn-create" (click)="openCreateForm()" aria-label="Create group">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    }
+  </header>
+
+  @if (isLoading()) {
+    <div class="center-state">
+      <div class="spinner"></div>
+    </div>
+  } @else if (loadError()) {
+    <div class="center-state muted">Failed to load groups.</div>
+  } @else if (groups().length === 0) {
+    <div class="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
+        <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>
+        <line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/>
+      </svg>
+      <p>No groups yet</p>
+      @if (auth.isAuthenticated()) {
+        <button class="btn-secondary" (click)="openCreateForm()">Create a group</button>
+      }
+    </div>
+  } @else {
+    <ul class="group-list">
+      @for (group of groups(); track group.id) {
+        <li class="group-item">
+          <a class="group-link" [routerLink]="['/groups', group.id]">
+            <div class="group-avatar">
+              {{ group.name.charAt(0).toUpperCase() }}
+            </div>
+            <div class="group-info">
+              <span class="group-name">{{ group.name }}</span>
+              <span class="group-meta">{{ group.memberIds.length }} member{{ group.memberIds.length !== 1 ? 's' : '' }}</span>
+            </div>
+            <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </a>
+        </li>
+      }
+    </ul>
+  }
+</div>
+
+<!-- Create group modal -->
+@if (showCreateForm()) {
+  <div class="modal-backdrop" (click)="cancelCreate()"></div>
+  <div class="modal">
+    <header class="modal-header">
+      <h2>New Group</h2>
+      <button class="close-btn" (click)="cancelCreate()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <label class="field-label" for="group-name">Group name</label>
+      <input
+        id="group-name"
+        class="text-input"
+        type="text"
+        placeholder="e.g. Family, Travel crew…"
+        [value]="newGroupName()"
+        (input)="newGroupName.set($any($event.target).value)"
+        maxlength="60"
+        autofocus
+      />
+      @if (createError()) {
+        <p class="error-msg">{{ createError() }}</p>
+      }
+    </div>
+    <footer class="modal-footer">
+      <button class="btn-secondary" (click)="cancelCreate()">Cancel</button>
+      <button
+        class="btn-primary"
+        [disabled]="isCreating() || !newGroupName().trim()"
+        (click)="createGroup()"
+      >
+        @if (isCreating()) { Creating… } @else { Create }
+      </button>
+    </footer>
+  </div>
+}

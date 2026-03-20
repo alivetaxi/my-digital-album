@@ -23,5 +23,20 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/media/viewer/media-viewer.component').then(m => m.MediaViewerComponent),
   },
+  {
+    path: 'groups',
+    loadComponent: () =>
+      import('./features/groups/group-list/group-list.component').then(m => m.GroupListComponent),
+  },
+  {
+    path: 'groups/:groupId',
+    loadComponent: () =>
+      import('./features/groups/group-detail/group-detail.component').then(m => m.GroupDetailComponent),
+  },
+  {
+    path: 'join',
+    loadComponent: () =>
+      import('./features/groups/group-join/group-join.component').then(m => m.GroupJoinComponent),
+  },
   { path: '**', redirectTo: 'albums' },
 ];
