@@ -101,6 +101,21 @@ export class MediaService {
     }
   }
 
+  async getOriginalUrl(albumId: string, mediaId: string): Promise<string> {
+    const headers = await this.authHeaders();
+    try {
+      const result = await firstValueFrom(
+        this.http.get<{ url: string }>(
+          `/api/albums/${albumId}/media/${mediaId}/original-url`,
+          { headers }
+        )
+      );
+      return result.url;
+    } catch (err) {
+      return this.handleError(err);
+    }
+  }
+
   async deleteMedia(albumId: string, mediaId: string): Promise<void> {
     const headers = await this.authHeaders();
     try {

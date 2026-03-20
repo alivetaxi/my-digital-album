@@ -189,6 +189,30 @@ describe('MediaService', () => {
     });
   });
 
+  describe('getOriginalUrl', () => {
+    it('returns signed URL string', async () => {
+      const promise = service.getOriginalUrl('a1', 'm1');
+      await flushAuth();
+      http.expectOne('/api/albums/a1/media/m1/original-url').flush({ url: 'https://signed' });
+
+      const result = await promise;
+      expect(result).toBe('https://signed');
+    });
+
+    it('throws AlbumApiError on 404', async () => {
+      const promise = service.getOriginalUrl('a1', 'missing');
+      await flushAuth();
+      http.expectOne('/api/albums/a1/media/missing/original-url').flush(
+        { error: { code: 'MEDIA_NOT_FOUND', message: 'This item no longer exists.', status: 404 } },
+        { status: 404, statusText: 'Not Found' }
+      );
+
+      await expectAsync(promise).toBeRejectedWith(
+        jasmine.objectContaining({ message: 'This item no longer exists.' })
+      );
+    });
+  });
+
   describe('deleteMedia', () => {
     it('sends DELETE request', async () => {
       const promise = service.deleteMedia('a1', 'm1');

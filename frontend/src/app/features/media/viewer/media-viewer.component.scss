@@ -14,6 +14,10 @@
   height: 100%;
 }
 
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
+
 .viewer-header {
   display: flex;
   align-items: center;
@@ -31,18 +35,83 @@
   display: flex;
   align-items: center;
   padding: 4px;
+  flex-shrink: 0;
 }
 
 .counter {
   flex: 1;
   text-align: center;
   font-size: 14px;
-  color: rgba(255,255,255,0.8);
+  color: rgba(255, 255, 255, 0.8);
 }
 
-.header-spacer {
-  width: 32px;
+.header-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
 }
+
+.action-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+
+  &:hover { background: rgba(255, 255, 255, 0.25); }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.action-delete:hover { background: rgba(217, 48, 37, 0.75); }
+
+// ---------------------------------------------------------------------------
+// Loading / error states
+// ---------------------------------------------------------------------------
+
+.center-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.error-banner {
+  position: absolute;
+  bottom: 180px;
+  left: 16px;
+  right: 16px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(180, 30, 20, 0.92);
+  border-radius: 10px;
+  font-size: 13px;
+
+  .dismiss-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 15px;
+    padding: 0;
+    flex-shrink: 0;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Media area
+// ---------------------------------------------------------------------------
 
 .media-area {
   flex: 1;
@@ -67,11 +136,36 @@
   max-height: 100%;
 }
 
+.video-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+// ---------------------------------------------------------------------------
+// Arrow navigation
+// ---------------------------------------------------------------------------
+
 .nav-arrow {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  background: rgba(255,255,255,0.12);
+  background: rgba(255, 255, 255, 0.12);
   border: none;
   color: #fff;
   width: 44px;
@@ -84,7 +178,7 @@
   z-index: 10;
   transition: background 0.15s;
 
-  &:hover { background: rgba(255,255,255,0.25); }
+  &:hover { background: rgba(255, 255, 255, 0.25); }
 
   @media (pointer: coarse) { display: none; }
 
@@ -92,16 +186,55 @@
   &.nav-next { right: 12px; }
 }
 
+// ---------------------------------------------------------------------------
+// Metadata + description
+// ---------------------------------------------------------------------------
+
 .metadata {
-  padding: 12px 16px 8px;
+  padding: 10px 16px 8px;
   background: linear-gradient(to top, rgba(40, 18, 4, 0.85) 0%, transparent 100%);
+  min-height: 52px;
+}
+
+.description-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 .media-description {
-  margin: 0 0 6px;
+  flex: 1;
+  margin: 0;
   font-size: 14px;
-  color: rgba(255,255,255,0.9);
+  color: rgba(255, 255, 255, 0.9);
   line-height: 1.4;
+}
+
+.add-desc-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+
+  &:hover { color: rgba(255, 255, 255, 0.7); }
+}
+
+.edit-icon-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  &:hover { color: rgba(255, 255, 255, 0.9); }
 }
 
 .meta-row {
@@ -115,8 +248,79 @@
   align-items: center;
   gap: 5px;
   font-size: 12px;
-  color: rgba(255,255,255,0.65);
+  color: rgba(255, 255, 255, 0.55);
 }
+
+// ---------------------------------------------------------------------------
+// Inline edit form
+// ---------------------------------------------------------------------------
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edit-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  padding: 8px 10px;
+  resize: none;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: rgba(240, 160, 106, 0.7);
+  }
+
+  &::placeholder { color: rgba(255, 255, 255, 0.35); }
+}
+
+.save-error {
+  margin: 0;
+  font-size: 12px;
+  color: #f87171;
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.edit-btn {
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.edit-cancel {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
+
+  &:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); }
+}
+
+.edit-save {
+  background: #e07b39;
+  color: #fff;
+
+  &:hover:not(:disabled) { background: #c96a2a; }
+}
+
+// ---------------------------------------------------------------------------
+// Thumbnail strip
+// ---------------------------------------------------------------------------
 
 .strip-wrapper {
   padding: 8px 0 12px;
@@ -172,7 +376,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0,0,0,0.3);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .strip-skeleton {
@@ -180,4 +384,11 @@
   width: 64px;
   height: 64px;
   border-radius: 6px;
+  background: #3a2010;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
