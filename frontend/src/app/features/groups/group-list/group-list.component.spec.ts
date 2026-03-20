@@ -61,6 +61,15 @@ describe('GroupListComponent', () => {
       expect(component.loadError()).toBeTrue();
       expect(component.isLoading()).toBeFalse();
     }));
+
+    it('skips API call and clears loading when unauthenticated', fakeAsync(async () => {
+      const { component, groupSpy } = createComponent({ authenticated: false });
+      await component.ngOnInit();
+      tick();
+      expect(groupSpy.listMyGroups).not.toHaveBeenCalled();
+      expect(component.isLoading()).toBeFalse();
+      expect(component.groups().length).toBe(0);
+    }));
   });
 
   describe('createGroup', () => {

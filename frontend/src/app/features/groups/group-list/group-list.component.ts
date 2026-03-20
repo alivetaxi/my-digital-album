@@ -28,6 +28,10 @@ export class GroupListComponent implements OnInit {
   readonly createError = signal<string | null>(null);
 
   async ngOnInit() {
+    if (!this.auth.isAuthenticated()) {
+      this.isLoading.set(false);
+      return;
+    }
     try {
       this.groups.set(await this.groupService.listMyGroups());
     } catch {
