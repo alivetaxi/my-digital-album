@@ -97,6 +97,52 @@ def make_album(
     )
 
 
+GROUP_ID = "group-1"
+
+
+def make_group(
+    group_id: str = GROUP_ID,
+    owner: str = TEST_UID,
+    name: str = "Test Group",
+    member_ids: list | None = None,
+    invite_token: str = "valid-token-abc",
+    expired: bool = False,
+) -> MagicMock:
+    from datetime import timedelta
+    if member_ids is None:
+        member_ids = [owner]
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=-1 if expired else 48)
+    return make_doc(
+        group_id,
+        {
+            "id": group_id,
+            "name": name,
+            "ownerId": owner,
+            "memberIds": member_ids,
+            "inviteToken": invite_token,
+            "inviteTokenExpiresAt": expires_at,
+            "createdAt": datetime(2024, 1, 1, tzinfo=timezone.utc),
+        },
+    )
+
+
+def make_user(
+    uid: str = TEST_UID,
+    display_name: str = "Test User",
+    email: str = "test@example.com",
+) -> MagicMock:
+    return make_doc(
+        uid,
+        {
+            "uid": uid,
+            "displayName": display_name,
+            "email": email,
+            "photoURL": f"https://avatar.example.com/{uid}",
+            "groupIds": [],
+        },
+    )
+
+
 def make_media(
     media_id: str = MEDIA_ID,
     uploader: str = TEST_UID,
@@ -131,6 +177,8 @@ def build_db(
     user_doc: MagicMock | None = None,
     group_doc: MagicMock | None = None,
     album_list: list[MagicMock] | None = None,
+    group_list: list[MagicMock] | None = None,
+    group_query_list: list[MagicMock] | None = None,
 ) -> MagicMock:
     """
     Return a configured MagicMock Firestore client.
@@ -204,5 +252,18 @@ def build_db(
     group_ref = MagicMock()
     groups_col.document.return_value = group_ref
     group_ref.get.return_value = group_doc or make_doc("group-1", None)
+    group_ref.set.return_value = None
+    group_ref.update.return_value = None
+
+    # Query support (list_my_groups uses .where().stream();
+    # join_group uses .where().limit().stream())
+    groups_query = MagicMock()
+    groups_col.where.return_value = groups_query
+    groups_query.where.return_value = groups_query
+    groups_query.limit.return_value = groups_query
+    # group_query_list: results of invite-token lookup; group_list: results of member query
+    groups_query.stream.side_effect = lambda: iter(
+        group_query_list if group_query_list is not None else (group_list or [])
+    )
 
     return db
