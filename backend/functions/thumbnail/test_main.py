@@ -147,6 +147,7 @@ class TestProcess:
     def test_happy_path_updates_firestore_and_increments_count(self, mocker):
         jpeg = _make_jpeg()
         gcs = self._mock_gcs(jpeg)
+        mocker.patch("thumbnail.main._is_media_ready", return_value=False)
         mock_update = mocker.patch("thumbnail.main._update_media")
         mock_increment = mocker.patch("thumbnail.main._increment_media_count")
 
@@ -160,6 +161,20 @@ class TestProcess:
         assert fields["height"] == 600
         assert "thumbnailPath" in fields
         mock_increment.assert_called_once_with("a")
+
+    def test_skips_increment_when_media_already_ready(self, mocker):
+        """Re-uploading an existing file must not double-count mediaCount."""
+        jpeg = _make_jpeg()
+        gcs = self._mock_gcs(jpeg)
+        mocker.patch("thumbnail.main._is_media_ready", return_value=True)
+        mock_update = mocker.patch("thumbnail.main._update_media")
+        mock_increment = mocker.patch("thumbnail.main._increment_media_count")
+
+        with patch("google.cloud.storage.Client", return_value=gcs):
+            thumb._process("bucket", "media/u/a/m/original.jpg", "u", "a", "m", "image/jpeg")
+
+        mock_update.assert_called_once()
+        mock_increment.assert_not_called()
 
     def test_invalid_format_marks_failed_without_retry(self, mocker):
         mock_update = mocker.patch("thumbnail.main._update_media")
