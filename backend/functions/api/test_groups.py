@@ -101,6 +101,16 @@ class TestGetGroup:
         assert resp.status_code == 403
         assert resp.json()["error"]["code"] == "PERMISSION_DENIED"
 
+    def test_non_owner_member_can_get_group(self, client, mocker):
+        # TEST_UID is a regular member; OTHER_UID is the owner
+        group = make_group(owner=OTHER_UID, member_ids=[TEST_UID, OTHER_UID])
+        db = build_db(group_doc=group)
+        mocker.patch("groups.get_db", return_value=db)
+
+        resp = client.get(f"/api/groups/{GROUP_ID}")
+        assert resp.status_code == 200
+        assert resp.json()["id"] == GROUP_ID
+
     def test_not_found_returns_404(self, client, mocker):
         db = build_db(group_doc=make_doc(GROUP_ID, None))
         mocker.patch("groups.get_db", return_value=db)
@@ -138,6 +148,17 @@ class TestListMembers:
         resp = client.get(f"/api/groups/{GROUP_ID}/members")
         assert resp.status_code == 200
         assert resp.json()[0]["displayName"] is None
+
+    def test_non_owner_member_can_list_members(self, client, mocker):
+        # TEST_UID is a regular member; OTHER_UID is the owner
+        group = make_group(owner=OTHER_UID, member_ids=[TEST_UID, OTHER_UID])
+        user = make_user(uid=TEST_UID, display_name="Alice", email="alice@example.com")
+        db = build_db(group_doc=group, user_doc=user)
+        mocker.patch("groups.get_db", return_value=db)
+
+        resp = client.get(f"/api/groups/{GROUP_ID}/members")
+        assert resp.status_code == 200
+        assert len(resp.json()) == 2
 
     def test_non_member_gets_403(self, client, mocker):
         group = make_group(member_ids=[OTHER_UID])
