@@ -120,9 +120,12 @@ def _process_image(
 
             pillow_heif.register_heif_opener()
 
-        from PIL import Image
+        from PIL import Image, ImageOps
 
         img = Image.open(io.BytesIO(file_bytes))
+        # Apply EXIF orientation before reading dimensions — phones store portrait
+        # shots with a rotation tag, so without this the thumbnail would be sideways.
+        img = ImageOps.exif_transpose(img)
         orig_width, orig_height = img.size
         metadata = _extract_exif(img)
 
