@@ -114,12 +114,18 @@ def request_upload_url(
         ext = MIME_TO_EXT.get(item.mimeType, "bin")
         storage_path = f"media/{uid}/{album_id}/{media_id}/original.{ext}"
 
-        (
+        media_ref = (
             db.collection(get_col("albums"))
             .document(album_id)
             .collection("media")
             .document(media_id)
-            .set(
+        )
+
+        existing = media_ref.get()
+        if not (existing.exists and existing.to_dict().get("thumbnailStatus") == "ready"):
+            # New upload or re-upload of a failed/pending item — (re)create the doc.
+            # Skip if already "ready" so the thumbnail function won't double-count mediaCount.
+            media_ref.set(
                 {
                     "id": media_id,
                     "type": "photo" if item.mimeType.startswith("image/") else "video",
@@ -137,7 +143,6 @@ def request_upload_url(
                     "updatedAt": now,
                 }
             )
-        )
 
         result[media_id] = generate_upload_url(bucket, storage_path, item.mimeType)
 

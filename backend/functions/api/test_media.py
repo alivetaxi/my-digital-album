@@ -151,6 +151,23 @@ class TestRequestUploadUrl:
         assert resp.status_code == 200
         assert len(resp.json()) == 50
 
+    def test_skips_set_when_media_already_ready(self, client, mocker):
+        """Re-uploading a file whose thumbnail is already ready must not reset the doc."""
+        album = make_album(owner=TEST_UID, visibility="private")
+        existing_media = make_media(media_id="abc123", thumbnail_status="ready")
+        db = build_db(album_doc=album, media_doc=existing_media)
+        mocker.patch("media.get_db", return_value=db)
+        mocker.patch("media.generate_upload_url", return_value="https://signed-url")
+
+        resp = client.post(
+            f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS
+        )
+        assert resp.status_code == 200
+        assert resp.json()["abc123"] == "https://signed-url"
+
+        media_ref = db.collection("albums-dev").document(ALBUM_ID).collection("media").document("abc123")
+        media_ref.set.assert_not_called()
+
     def test_unauthenticated_returns_401(self, anon_client, mocker):
         resp = anon_client.post(
             f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS
