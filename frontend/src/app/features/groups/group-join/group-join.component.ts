@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { GroupService } from '../../../core/services/group.service';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -26,14 +26,13 @@ export class GroupJoinComponent implements OnInit {
 
   readonly isAuthenticated = this.auth.isAuthenticated;
 
-  readonly loginUrl = signal('/login');
+  /** Query params for the /login link so Angular handles URL encoding correctly. */
+  readonly loginQueryParams = computed(() =>
+    this.token() ? { returnUrl: `/join?token=${this.token()}` } : {}
+  );
 
   ngOnInit() {
-    const token = this.route.snapshot.queryParamMap.get('token') ?? '';
-    this.token.set(token);
-    if (token) {
-      this.loginUrl.set(`/login?returnUrl=/join?token=${encodeURIComponent(token)}`);
-    }
+    this.token.set(this.route.snapshot.queryParamMap.get('token') ?? '');
   }
 
   async join() {
