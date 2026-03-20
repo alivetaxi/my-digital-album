@@ -12,7 +12,7 @@ from shared.access import can_read_album
 from shared.auth import get_uid, require_auth
 from shared.db import get_col, get_db
 from shared.errors import error_response
-from shared.storage import generate_upload_url, get_storage_client
+from shared.storage import generate_read_url, generate_upload_url, get_storage_client
 
 router = APIRouter(prefix="/albums", tags=["media"])
 
@@ -142,6 +142,38 @@ def request_upload_url(
         result[media_id] = generate_upload_url(bucket, storage_path, item.mimeType)
 
     return result
+
+
+@router.get("/{album_id}/media/{media_id}/original-url")
+def get_original_url(
+    album_id: str,
+    media_id: str,
+    uid: str | None = Depends(get_uid),
+):
+    db = get_db()
+    album_doc = db.collection(get_col("albums")).document(album_id).get()
+
+    if not album_doc.exists:
+        return error_response("ALBUM_NOT_FOUND")
+
+    allowed, err = can_read_album(album_doc.to_dict(), uid, db)
+    if not allowed:
+        return error_response(err)
+
+    media_doc = (
+        db.collection(get_col("albums"))
+        .document(album_id)
+        .collection("media")
+        .document(media_id)
+        .get()
+    )
+    if not media_doc.exists:
+        return error_response("MEDIA_NOT_FOUND")
+
+    storage_path = media_doc.to_dict().get("storagePath", "")
+    bucket_name = os.environ.get("MEDIA_BUCKET", "")
+    url = generate_read_url(bucket_name, storage_path)
+    return {"url": url}
 
 
 @router.patch("/{album_id}/media/{media_id}")

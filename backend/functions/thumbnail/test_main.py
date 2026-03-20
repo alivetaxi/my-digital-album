@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import json
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -184,6 +185,151 @@ class TestProcess:
         with patch("thumbnail.main._process", side_effect=RuntimeError("transient")):
             with pytest.raises(RuntimeError, match="transient"):
                 thumb.generate_thumbnail_and_metadata(_make_event())
+
+
+# ---------------------------------------------------------------------------
+# Video processing
+# ---------------------------------------------------------------------------
+
+class TestProcessVideo:
+    """Tests for _process_video — subprocess calls are always mocked."""
+
+    def _make_frame_bytes(self) -> bytes:
+        """A minimal valid JPEG to simulate an ffmpeg-extracted frame."""
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new("RGB", (1280, 720)).save(buf, format="JPEG")
+        return buf.getvalue()
+
+    def test_happy_path_returns_thumbnail_and_dimensions(self, mocker):
+        frame = self._make_frame_bytes()
+        mocker.patch("thumbnail.main.subprocess.run", side_effect=[
+            # ffprobe call
+            MagicMock(returncode=0, stdout='{"streams":[{"codec_type":"video","width":1280,"height":720,"duration":"10.5"}],"format":{"tags":{}}}', stderr=""),
+            # ffmpeg frame extraction (seek=00:00:01)
+            MagicMock(returncode=0, stdout=frame, stderr=""),
+        ])
+
+        thumbnail_bytes, width, height, duration, metadata = thumb._process_video(b"fake-video")
+
+        assert isinstance(thumbnail_bytes, bytes) and len(thumbnail_bytes) > 0
+        assert width == 1280
+        assert height == 720
+        assert duration == pytest.approx(10.5)
+
+        from PIL import Image
+        img = Image.open(io.BytesIO(thumbnail_bytes))
+        assert img.width == 400  # resized to THUMBNAIL_WIDTH
+
+    def test_falls_back_to_first_frame_for_short_clip(self, mocker):
+        frame = self._make_frame_bytes()
+        mocker.patch("thumbnail.main.subprocess.run", side_effect=[
+            # ffprobe
+            MagicMock(returncode=0, stdout='{"streams":[],"format":{"tags":{}}}', stderr=""),
+            # ffmpeg seek=00:00:01 fails
+            MagicMock(returncode=1, stdout=b"", stderr=""),
+            # ffmpeg seek=00:00:00 succeeds
+            MagicMock(returncode=0, stdout=frame, stderr=""),
+        ])
+
+        thumbnail_bytes, *_ = thumb._process_video(b"fake-video")
+        assert len(thumbnail_bytes) > 0
+
+    def test_no_extractable_frame_raises_corrupted(self, mocker):
+        mocker.patch("thumbnail.main.subprocess.run", side_effect=[
+            MagicMock(returncode=0, stdout='{"streams":[],"format":{"tags":{}}}', stderr=""),
+            MagicMock(returncode=1, stdout=b"", stderr=""),
+            MagicMock(returncode=1, stdout=b"", stderr=""),
+        ])
+
+        with pytest.raises(thumb.CorruptedFileError):
+            thumb._process_video(b"corrupt-video")
+
+    def test_extracts_creation_time_as_taken_at(self, mocker):
+        frame = self._make_frame_bytes()
+        probe_json = json.dumps({
+            "streams": [{"codec_type": "video", "width": 640, "height": 480}],
+            "format": {"tags": {"creation_time": "2023-06-15T10:30:00.000000Z"}},
+        })
+        mocker.patch("thumbnail.main.subprocess.run", side_effect=[
+            MagicMock(returncode=0, stdout=probe_json, stderr=""),
+            MagicMock(returncode=0, stdout=frame, stderr=""),
+        ])
+
+        _, _, _, _, metadata = thumb._process_video(b"fake-video")
+        assert metadata["takenAt"] == datetime(2023, 6, 15, 10, 30, 0, tzinfo=timezone.utc)
+
+    def test_extracts_gps_location_as_taken_place(self, mocker):
+        frame = self._make_frame_bytes()
+        probe_json = json.dumps({
+            "streams": [{"codec_type": "video", "width": 640, "height": 480}],
+            "format": {"tags": {"location": "+35.6894+139.6917+40/"}},
+        })
+        mocker.patch("thumbnail.main.subprocess.run", side_effect=[
+            MagicMock(returncode=0, stdout=probe_json, stderr=""),
+            MagicMock(returncode=0, stdout=frame, stderr=""),
+        ])
+        mocker.patch("thumbnail.main._reverse_geocode", return_value="Tokyo, Japan")
+
+        _, _, _, _, metadata = thumb._process_video(b"fake-video")
+        assert metadata["takenPlace"]["lat"] == pytest.approx(35.6894)
+        assert metadata["takenPlace"]["lng"] == pytest.approx(139.6917)
+        assert metadata["takenPlace"]["placeName"] == "Tokyo, Japan"
+
+
+# ---------------------------------------------------------------------------
+# ISO 6709 parsing
+# ---------------------------------------------------------------------------
+
+class TestParseIso6709:
+    def test_parses_positive_lat_lng(self):
+        lat, lng = thumb._parse_iso6709("+35.6894+139.6917/")
+        assert lat == pytest.approx(35.6894)
+        assert lng == pytest.approx(139.6917)
+
+    def test_parses_negative_values(self):
+        lat, lng = thumb._parse_iso6709("-33.8688+151.2093/")
+        assert lat == pytest.approx(-33.8688)
+        assert lng == pytest.approx(151.2093)
+
+    def test_returns_none_for_garbage(self):
+        lat, lng = thumb._parse_iso6709("not-a-location")
+        assert lat is None
+        assert lng is None
+
+
+# ---------------------------------------------------------------------------
+# _process — video branch
+# ---------------------------------------------------------------------------
+
+class TestProcessVideoIntegration:
+    def test_video_content_type_calls_process_video(self, mocker):
+        jpeg = _make_jpeg()
+        gcs = MagicMock()
+        gcs.Client.return_value.bucket.return_value.blob.return_value.download_as_bytes.return_value = b"fake-video"
+        mock_process_video = mocker.patch(
+            "thumbnail.main._process_video",
+            return_value=(jpeg, 1280, 720, 10.5, {}),
+        )
+        mock_update = mocker.patch("thumbnail.main._update_media")
+        mocker.patch("thumbnail.main._increment_media_count")
+
+        with patch("google.cloud.storage.Client", return_value=gcs.Client.return_value):
+            thumb._process("bucket", "media/u/a/m/original.mp4", "u", "a", "m", "video/mp4")
+
+        mock_process_video.assert_called_once()
+        fields = mock_update.call_args[0][2]
+        assert fields["thumbnailStatus"] == "ready"
+        assert fields["duration"] == 10.5
+        assert fields["width"] == 1280
+
+    def test_unsupported_content_type_raises_invalid_format(self, mocker):
+        gcs_mock = MagicMock()
+        gcs_mock.bucket.return_value.blob.return_value.download_as_bytes.return_value = b"data"
+
+        with patch("google.cloud.storage.Client", return_value=gcs_mock):
+            with pytest.raises(thumb.InvalidFileFormatError):
+                thumb._process("bucket", "media/u/a/m/original.bin", "u", "a", "m", "application/octet-stream")
 
 
 # ---------------------------------------------------------------------------

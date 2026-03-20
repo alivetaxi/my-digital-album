@@ -18,6 +18,26 @@ def get_storage_client() -> storage.Client:
     return _client
 
 
+def generate_read_url(
+    bucket_name: str,
+    blob_path: str,
+    expiration_minutes: int = 15,
+) -> str:
+    """Generate a v4 signed GET URL for reading a private GCS object."""
+    credentials, _ = google.auth.default()
+    credentials.refresh(google.auth.transport.requests.Request())
+
+    client = get_storage_client()
+    blob = client.bucket(bucket_name).blob(blob_path)
+    return blob.generate_signed_url(
+        version="v4",
+        expiration=datetime.timedelta(minutes=expiration_minutes),
+        method="GET",
+        service_account_email=credentials.service_account_email,
+        access_token=credentials.token,
+    )
+
+
 def generate_upload_url(
     bucket_name: str,
     blob_path: str,

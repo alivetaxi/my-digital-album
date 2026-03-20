@@ -168,6 +168,56 @@ class TestRequestUploadUrl:
 
 
 # ---------------------------------------------------------------------------
+# GET /api/albums/{album_id}/media/{media_id}/original-url
+# ---------------------------------------------------------------------------
+
+class TestGetOriginalUrl:
+    def test_returns_signed_url_for_album_member(self, client, mocker):
+        album = make_album(owner=TEST_UID, visibility="private")
+        media = make_media(uploader=TEST_UID)
+        db = build_db(album_doc=album, media_doc=media)
+        mocker.patch("media.get_db", return_value=db)
+        mocker.patch("media.generate_read_url", return_value="https://signed-read-url")
+
+        resp = client.get(f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}/original-url")
+        assert resp.status_code == 200
+        assert resp.json()["url"] == "https://signed-read-url"
+
+    def test_anonymous_can_access_public_album_original(self, anon_client, mocker):
+        album = make_album(owner=OTHER_UID, visibility="public")
+        media = make_media(uploader=OTHER_UID)
+        db = build_db(album_doc=album, media_doc=media)
+        mocker.patch("media.get_db", return_value=db)
+        mocker.patch("media.generate_read_url", return_value="https://public-url")
+
+        resp = anon_client.get(f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}/original-url")
+        assert resp.status_code == 200
+
+    def test_private_album_returns_404_for_anonymous(self, anon_client, mocker):
+        album = make_album(owner=OTHER_UID, visibility="private")
+        db = build_db(album_doc=album)
+        mocker.patch("media.get_db", return_value=db)
+
+        resp = anon_client.get(f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}/original-url")
+        assert resp.status_code == 404
+
+    def test_media_not_found_returns_404(self, client, mocker):
+        album = make_album(owner=TEST_UID, visibility="private")
+        db = build_db(album_doc=album, media_doc=make_doc(MEDIA_ID, None))
+        mocker.patch("media.get_db", return_value=db)
+
+        resp = client.get(f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}/original-url")
+        assert resp.status_code == 404
+
+    def test_album_not_found_returns_404(self, client, mocker):
+        db = build_db(album_doc=make_doc(ALBUM_ID, None))
+        mocker.patch("media.get_db", return_value=db)
+
+        resp = client.get(f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}/original-url")
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # PATCH /api/albums/{album_id}/media/{media_id}
 # ---------------------------------------------------------------------------
 
