@@ -196,6 +196,15 @@ export class MediaViewerComponent implements OnInit {
     this.saveError.set(null);
   }
 
+  /** iOS Safari doesn't restore viewport zoom after keyboard dismissal. Force-reset it. */
+  resetViewportZoom() {
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (!meta) return;
+    const orig = meta.content;
+    meta.content = 'width=device-width, initial-scale=1, maximum-scale=1';
+    requestAnimationFrame(() => { meta.content = orig; });
+  }
+
   async saveDescription() {
     const media = this.currentMedia();
     if (!media) return;

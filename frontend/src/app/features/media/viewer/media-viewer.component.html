@@ -91,6 +91,7 @@
                     [(ngModel)]="editValue"
                     rows="2"
                     placeholder="Add a description…"
+                    (blur)="resetViewportZoom()"
                     (keydown.escape)="cancelEdit()"></textarea>
           @if (saveError()) {
             <p class="save-error">{{ saveError() }}</p>
