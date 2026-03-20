@@ -143,6 +143,29 @@ def _process_image(
         raise
 
 
+def _get_ffmpeg_exe() -> str:
+    """Return path to ffmpeg; prefers imageio-ffmpeg's bundled static binary."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
+def _get_ffprobe_exe() -> str:
+    """Return path to ffprobe; derives it from imageio-ffmpeg's ffmpeg path."""
+    try:
+        import imageio_ffmpeg
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        # imageio-ffmpeg static builds ship both ffmpeg and ffprobe side-by-side
+        ffprobe = ffmpeg_exe.replace("ffmpeg", "ffprobe")
+        if os.path.exists(ffprobe):
+            return ffprobe
+    except Exception:
+        pass
+    return "ffprobe"  # fall back to system ffprobe
+
+
 def _process_video(file_bytes: bytes) -> tuple[bytes, int, int, float | None, dict]:
     """Extract thumbnail frame and metadata from video via ffmpeg/ffprobe.
 
@@ -159,7 +182,7 @@ def _process_video(file_bytes: bytes) -> tuple[bytes, int, int, float | None, di
         # --- metadata via ffprobe ---
         probe = subprocess.run(
             [
-                "ffprobe", "-v", "quiet",
+                _get_ffprobe_exe(), "-v", "quiet",
                 "-print_format", "json",
                 "-show_streams", "-show_format",
                 video_path,
@@ -178,7 +201,7 @@ def _process_video(file_bytes: bytes) -> tuple[bytes, int, int, float | None, di
         for seek in ("00:00:01", "00:00:00"):
             result = subprocess.run(
                 [
-                    "ffmpeg", "-y", "-ss", seek, "-i", video_path,
+                    _get_ffmpeg_exe(), "-y", "-ss", seek, "-i", video_path,
                     "-vframes", "1",
                     "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1",
                 ],

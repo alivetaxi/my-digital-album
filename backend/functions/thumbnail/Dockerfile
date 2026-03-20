@@ -1,7 +1,8 @@
 FROM python:3.12-slim
 
+# Only libheif-dev needed — ffmpeg/ffprobe come via imageio-ffmpeg pip package
+# (static binary, avoids the large apt-get install ffmpeg which OOMs on Docker Desktop)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
     libheif-dev \
     && rm -rf /var/lib/apt/lists/*
 
