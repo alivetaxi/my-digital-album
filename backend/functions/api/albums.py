@@ -8,8 +8,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 from google.cloud import firestore
-from google.cloud.firestore_v1.field_path import FieldPath
-from google.cloud.firestore_v1.transforms import ArrayUnion, ArrayRemove, DELETE_FIELD
+from google.cloud.firestore_v1.transforms import ArrayUnion, ArrayRemove
 from pydantic import BaseModel
 
 from shared.access import can_read_album, get_member_permission
@@ -300,8 +299,8 @@ def add_member(album_id: str, body: AddMemberBody, uid: str = Depends(require_au
             "inviteExpiresAt": None,
             "addedAt": now,
         }
-        ref.update({FieldPath("members", email): entry})
-        ref.update({"memberIds": ArrayUnion([user_uid]), "updatedAt": now})
+        new_members = {**members, email: entry}
+        ref.update({"members": new_members, "memberIds": ArrayUnion([user_uid]), "updatedAt": now})
         return _serialize_member(email, entry, user_info)
     else:
         # User not registered — generate a one-time invite token
@@ -314,8 +313,8 @@ def add_member(album_id: str, body: AddMemberBody, uid: str = Depends(require_au
             "inviteExpiresAt": expires_at,
             "addedAt": now,
         }
-        ref.update({FieldPath("members", email): entry})
-        ref.update({"updatedAt": now})
+        new_members = {**members, email: entry}
+        ref.update({"members": new_members, "updatedAt": now})
         return _serialize_member(email, entry)
 
 
@@ -343,8 +342,8 @@ def update_member(
         return error_response("MEMBER_NOT_FOUND")
 
     now = datetime.now(timezone.utc)
-    ref.update({FieldPath("members", email, "permission"): body.permission})
-    ref.update({"updatedAt": now})
+    new_members = {**members, email: {**members[email], "permission": body.permission}}
+    ref.update({"members": new_members, "updatedAt": now})
 
     entry = {**members[email], "permission": body.permission}
     user_info = None
@@ -378,11 +377,11 @@ def delete_member(
         return error_response("MEMBER_NOT_FOUND")
 
     entry = members[email]
-    ref.update({FieldPath("members", email): DELETE_FIELD})
-    str_updates: dict = {"updatedAt": datetime.now(timezone.utc)}
+    new_members = {k: v for k, v in members.items() if k != email}
+    updates: dict = {"members": new_members, "updatedAt": datetime.now(timezone.utc)}
     if entry.get("userId"):
-        str_updates["memberIds"] = ArrayRemove([entry["userId"]])
-    ref.update(str_updates)
+        updates["memberIds"] = ArrayRemove([entry["userId"]])
+    ref.update(updates)
     return {"deleted": True}
 
 
@@ -425,12 +424,11 @@ def accept_invite(
             return error_response("INVITE_TOKEN_EXPIRED")
 
     now = datetime.now(timezone.utc)
-    ref.update({
-        FieldPath("members", found_email, "userId"): uid,
-        FieldPath("members", found_email, "inviteToken"): None,
-        FieldPath("members", found_email, "inviteExpiresAt"): None,
-    })
-    ref.update({"memberIds": ArrayUnion([uid]), "updatedAt": now})
+    new_members = {
+        **members,
+        found_email: {**entry, "userId": uid, "inviteToken": None, "inviteExpiresAt": None},
+    }
+    ref.update({"members": new_members, "memberIds": ArrayUnion([uid]), "updatedAt": now})
 
     # Return updated album so the frontend can navigate in
     updated_members = {

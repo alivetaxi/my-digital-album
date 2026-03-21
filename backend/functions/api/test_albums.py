@@ -266,7 +266,7 @@ class TestUpdateAlbum:
         resp = client.patch(f"/api/albums/{ALBUM_ID}", json={"title": "X"})
         assert resp.status_code == 404
 
-    def test_unauthenticated_returns_401(self, anon_client, mocker):
+    def test_unauthenticated_returns_401(self, anon_client):
         resp = anon_client.patch(f"/api/albums/{ALBUM_ID}", json={"title": "X"})
         assert resp.status_code == 401
 
@@ -476,7 +476,7 @@ class TestDeleteMember:
         resp = client.delete(f"/api/albums/{ALBUM_ID}/members/{MEMBER_EMAIL}")
         assert resp.status_code == 200
         assert resp.json()["deleted"] is True
-        assert db.collection("albums-dev").document.return_value.update.call_count == 2
+        db.collection("albums-dev").document.return_value.update.assert_called_once()
 
     def test_non_owner_gets_403(self, other_client, mocker):
         album = make_album(owner=TEST_UID)
