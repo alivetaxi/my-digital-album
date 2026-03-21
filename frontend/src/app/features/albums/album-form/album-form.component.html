@@ -46,12 +46,11 @@
         <select
           id="group-select"
           class="select-input"
-          [value]="selectedGroupId() ?? ''"
           (change)="selectedGroupId.set($any($event.target).value || null)"
         >
-          <option value="">Select a group…</option>
+          <option value="" [selected]="!selectedGroupId()">Select a group…</option>
           @for (g of groups(); track g.id) {
-            <option [value]="g.id">{{ g.name }}</option>
+            <option [value]="g.id" [selected]="g.id === selectedGroupId()">{{ g.name }}</option>
           }
         </select>
       }
