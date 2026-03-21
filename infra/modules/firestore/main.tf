@@ -52,18 +52,14 @@ resource "google_firestore_index" "albums_visibility_updated" {
   }
 }
 
-resource "google_firestore_index" "albums_visibility_group_updated" {
+resource "google_firestore_index" "albums_member_ids_updated" {
   project    = var.project_id
   database   = "(default)"
   collection = "albums-${var.environment}"
 
   fields {
-    field_path = "visibility"
-    order      = "ASCENDING"
-  }
-  fields {
-    field_path = "groupId"
-    order      = "ASCENDING"
+    field_path   = "memberIds"
+    array_config = "CONTAINS"
   }
   fields {
     field_path = "updatedAt"
