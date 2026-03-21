@@ -476,7 +476,7 @@ class TestDeleteMember:
         resp = client.delete(f"/api/albums/{ALBUM_ID}/members/{MEMBER_EMAIL}")
         assert resp.status_code == 200
         assert resp.json()["deleted"] is True
-        db.collection("albums-dev").document.return_value.update.assert_called_once()
+        assert db.collection("albums-dev").document.return_value.update.call_count == 2
 
     def test_non_owner_gets_403(self, other_client, mocker):
         album = make_album(owner=TEST_UID)

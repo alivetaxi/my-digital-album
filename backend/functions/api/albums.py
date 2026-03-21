@@ -300,11 +300,8 @@ def add_member(album_id: str, body: AddMemberBody, uid: str = Depends(require_au
             "inviteExpiresAt": None,
             "addedAt": now,
         }
-        ref.update({
-            FieldPath("members", email): entry,
-            "memberIds": ArrayUnion([user_uid]),
-            "updatedAt": now,
-        })
+        ref.update({FieldPath("members", email): entry})
+        ref.update({"memberIds": ArrayUnion([user_uid]), "updatedAt": now})
         return _serialize_member(email, entry, user_info)
     else:
         # User not registered — generate a one-time invite token
@@ -317,10 +314,8 @@ def add_member(album_id: str, body: AddMemberBody, uid: str = Depends(require_au
             "inviteExpiresAt": expires_at,
             "addedAt": now,
         }
-        ref.update({
-            FieldPath("members", email): entry,
-            "updatedAt": now,
-        })
+        ref.update({FieldPath("members", email): entry})
+        ref.update({"updatedAt": now})
         return _serialize_member(email, entry)
 
 
@@ -348,10 +343,8 @@ def update_member(
         return error_response("MEMBER_NOT_FOUND")
 
     now = datetime.now(timezone.utc)
-    ref.update({
-        FieldPath("members", email, "permission"): body.permission,
-        "updatedAt": now,
-    })
+    ref.update({FieldPath("members", email, "permission"): body.permission})
+    ref.update({"updatedAt": now})
 
     entry = {**members[email], "permission": body.permission}
     user_info = None
@@ -385,14 +378,11 @@ def delete_member(
         return error_response("MEMBER_NOT_FOUND")
 
     entry = members[email]
-    updates: dict = {
-        FieldPath("members", email): DELETE_FIELD,
-        "updatedAt": datetime.now(timezone.utc),
-    }
+    ref.update({FieldPath("members", email): DELETE_FIELD})
+    str_updates: dict = {"updatedAt": datetime.now(timezone.utc)}
     if entry.get("userId"):
-        updates["memberIds"] = ArrayRemove([entry["userId"]])
-
-    ref.update(updates)
+        str_updates["memberIds"] = ArrayRemove([entry["userId"]])
+    ref.update(str_updates)
     return {"deleted": True}
 
 
@@ -439,9 +429,8 @@ def accept_invite(
         FieldPath("members", found_email, "userId"): uid,
         FieldPath("members", found_email, "inviteToken"): None,
         FieldPath("members", found_email, "inviteExpiresAt"): None,
-        "memberIds": ArrayUnion([uid]),
-        "updatedAt": now,
     })
+    ref.update({"memberIds": ArrayUnion([uid]), "updatedAt": now})
 
     # Return updated album so the frontend can navigate in
     updated_members = {
