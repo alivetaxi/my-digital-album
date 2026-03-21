@@ -1,4 +1,6 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { filter, firstValueFrom } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { Album } from '../../../core/models';
 import { AlbumApiError, AlbumService } from '../../../core/services/album.service';
@@ -14,7 +16,8 @@ import { AlbumFormComponent } from '../album-form/album-form.component';
 })
 export class AlbumListComponent implements OnInit {
   private readonly albumService = inject(AlbumService);
-  readonly isAuthenticated = inject(AuthService).isAuthenticated;
+  private readonly auth = inject(AuthService);
+  readonly isAuthenticated = this.auth.isAuthenticated;
 
   readonly myAlbums = signal<Album[]>([]);
   readonly sharedWithMe = signal<Album[]>([]);
@@ -27,6 +30,11 @@ export class AlbumListComponent implements OnInit {
   readonly deleteError = signal<string | null>(null);
 
   async ngOnInit() {
+    // Firebase auth starts as undefined (loading). Wait for it to resolve so
+    // getIdToken() returns the real token and the server includes private albums.
+    await firstValueFrom(
+      toObservable(this.auth.user).pipe(filter(u => u !== undefined))
+    );
     await this.loadAlbums();
   }
 
