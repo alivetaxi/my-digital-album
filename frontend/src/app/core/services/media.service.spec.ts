@@ -315,9 +315,17 @@ describe('MediaService', () => {
     });
 
     it('uses chunked PUT with Content-Range for large files', async () => {
+      const CHUNK = 8 * 1024 * 1024;
+      const FILE_SIZE = CHUNK * 3 + 1; // 4 chunks
       const file = new File([], 'video.mp4', { type: 'video/mp4' });
-      // Spoof size just over MULTIPART_THRESHOLD (30 MB)
-      Object.defineProperty(file, 'size', { value: 30 * 1024 * 1024 + 1, configurable: true });
+      Object.defineProperty(file, 'size', { value: FILE_SIZE, configurable: true });
+
+      // Simulate GCS: 308 Resume Incomplete for chunks 1-3, 200 OK for the last
+      let callCount = 0;
+      fetchSpy.and.callFake(() => {
+        callCount++;
+        return Promise.resolve(new Response(null, { status: callCount < 4 ? 308 : 200 }));
+      });
 
       const promise = service.uploadFiles('a1', [file]);
       await flushUpload();
@@ -328,13 +336,91 @@ describe('MediaService', () => {
 
       await promise;
 
-      // All PUT requests should go to the session URI and carry Content-Range
-      expect(fetchSpy.calls.count()).toBeGreaterThan(0);
+      expect(fetchSpy.calls.count()).toBe(4);
       for (const call of fetchSpy.calls.all()) {
         expect(call.args[0]).toBe('https://gcs/session');
         const headers = call.args[1].headers as Record<string, string>;
         expect(headers['Content-Range']).toBeTruthy();
       }
+      // Last chunk's Content-Range must end at the final byte of the file
+      const lastRange = (fetchSpy.calls.mostRecent().args[1].headers as Record<string, string>)['Content-Range'];
+      expect(lastRange).toMatch(new RegExp(`-${FILE_SIZE - 1}/${FILE_SIZE}$`));
+    });
+
+    it('stops sending chunks when GCS returns 200 on an intermediate chunk (early completion)', async () => {
+      const CHUNK = 8 * 1024 * 1024;
+      const file = new File([], 'video.mp4', { type: 'video/mp4' });
+      Object.defineProperty(file, 'size', { value: CHUNK * 4 + 1, configurable: true });
+
+      // GCS completes after the 2nd chunk (early 200)
+      let callCount = 0;
+      fetchSpy.and.callFake(() => {
+        callCount++;
+        return Promise.resolve(new Response(null, { status: callCount === 1 ? 308 : 200 }));
+      });
+
+      const promise = service.uploadFiles('a1', [file]);
+      await flushUpload();
+
+      http.expectOne('/api/albums/a1/media/upload-url').flush({
+        [EMPTY_SHA256]: { url: 'https://gcs/session', multipart: true },
+      });
+
+      await promise;
+      // Must stop after the early 200, not send all 5 chunks
+      expect(fetchSpy.calls.count()).toBe(2);
+    });
+
+    it('throws when GCS returns 308 for the last chunk (upload incomplete)', async () => {
+      const file = new File([], 'video.mp4', { type: 'video/mp4' });
+      // 1-byte file → single chunk that is also the last chunk
+      Object.defineProperty(file, 'size', { value: 1, configurable: true });
+      fetchSpy.and.resolveTo(new Response(null, { status: 308 }));
+
+      const promise = service.uploadFiles('a1', [file]);
+      await flushUpload();
+
+      http.expectOne('/api/albums/a1/media/upload-url').flush({
+        [EMPTY_SHA256]: { url: 'https://gcs/session', multipart: true },
+      });
+
+      await expectAsync(promise).toBeRejectedWithError(/HTTP 308/);
+    });
+
+    it('resumes from Range header offset when 308 response has Range', async () => {
+      const CHUNK = 8 * 1024 * 1024;
+      const FILE_SIZE = CHUNK * 2 + 1; // 3 chunks normally
+      const file = new File([], 'video.mp4', { type: 'video/mp4' });
+      Object.defineProperty(file, 'size', { value: FILE_SIZE, configurable: true });
+
+      // Chunk 1: GCS only received 1 byte (Range: bytes=0-0)
+      // Chunk 2: normal 308 (from resumed offset 1)
+      // Chunk 3: 200 done
+      let callCount = 0;
+      fetchSpy.and.callFake(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve(new Response(null, { status: 308, headers: { Range: 'bytes=0-0' } }));
+        }
+        return Promise.resolve(new Response(null, { status: callCount === 3 ? 200 : 308 }));
+      });
+
+      const promise = service.uploadFiles('a1', [file]);
+      await flushUpload();
+
+      http.expectOne('/api/albums/a1/media/upload-url').flush({
+        [EMPTY_SHA256]: { url: 'https://gcs/session', multipart: true },
+      });
+
+      await promise;
+
+      expect(fetchSpy.calls.count()).toBe(3);
+      const ranges = fetchSpy.calls.all().map(
+        c => (c.args[1].headers as Record<string, string>)['Content-Range']
+      );
+      // Second chunk must resume from byte 1, not from CHUNK_SIZE
+      expect(ranges[0]).toBe(`bytes 0-${CHUNK - 1}/${FILE_SIZE}`);
+      expect(ranges[1]).toMatch(/^bytes 1-/);
     });
 
     it('skips upload and returns empty array when server returns no URL', async () => {

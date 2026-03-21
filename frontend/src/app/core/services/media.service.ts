@@ -242,7 +242,6 @@ export class MediaService {
     let offset = 0;
     while (offset < file.size) {
       const end = Math.min(offset + CHUNK_SIZE, file.size);
-      const chunk = file.slice(offset, end);
       const isLast = end === file.size;
       const response = await fetch(sessionUri, {
         method: 'PUT',
@@ -250,14 +249,24 @@ export class MediaService {
           'Content-Range': `bytes ${offset}-${end - 1}/${file.size}`,
           'Content-Type': file.type,
         },
-        body: chunk,
+        body: file.slice(offset, end),
       });
-      // GCS returns 308 Resume Incomplete for intermediate chunks,
-      // and 200/201 for the final chunk.
-      if (!response.ok && !(response.status === 308 && !isLast)) {
+      if (response.ok) {
+        // GCS returned 200/201 — object is finalized. Stop immediately even if
+        // we thought this was an intermediate chunk (e.g. GCS completed early).
+        break;
+      }
+      if (response.status !== 308 || isLast) {
+        // 308 on the last chunk means GCS hasn't received all bytes (size
+        // mismatch or partial delivery). Any other non-OK status is an error.
         throw new Error(`Resumable upload failed at offset ${offset}: HTTP ${response.status}`);
       }
-      offset = end;
+      // 308 Resume Incomplete on an intermediate chunk. GCS may return a Range
+      // header (bytes=0-N) indicating the last byte it actually received; resume
+      // from there instead of blindly assuming the full chunk was delivered.
+      const range = response.headers.get('Range');
+      const match = range?.match(/bytes=0-(\d+)/);
+      offset = match ? parseInt(match[1], 10) + 1 : end;
     }
   }
 

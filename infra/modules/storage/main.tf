@@ -19,7 +19,7 @@ resource "google_storage_bucket" "media" {
   cors {
     origin          = ["*"]
     method          = ["GET", "HEAD", "PUT", "POST"]
-    response_header = ["Content-Type", "Content-MD5", "x-goog-resumable"]
+    response_header = ["Content-Type", "Content-MD5", "Content-Range", "Range", "ETag", "x-goog-resumable"]
     max_age_seconds = 3600
   }
 
