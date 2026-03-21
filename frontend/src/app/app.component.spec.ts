@@ -1,9 +1,8 @@
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
-import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
 import { AppComponent } from './app.component';
-import { BottomNavComponent } from './shared/components/bottom-nav/bottom-nav.component';
 
 describe('AppComponent', () => {
   let routerEvents$: Subject<NavigationEnd>;
@@ -23,8 +22,10 @@ describe('AppComponent', () => {
 
     // Remove child components that pull in heavy dependencies (Router internals,
     // Firebase, etc.) so this spec stays focused on AppComponent logic only.
+    // Completely replace template + imports so <router-outlet> / <app-bottom-nav>
+    // don't require real Router internals or Firebase — we only test signal logic.
     TestBed.overrideComponent(AppComponent, {
-      remove: { imports: [RouterOutlet, BottomNavComponent] },
+      set: { template: '', imports: [] },
     });
 
     const fixture = TestBed.createComponent(AppComponent);

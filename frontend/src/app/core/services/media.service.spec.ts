@@ -279,7 +279,15 @@ describe('MediaService', () => {
 
     let fetchSpy: jasmine.Spy;
 
+    // crypto.subtle.digest resolves via a native browser task that is NOT
+    // synchronized with Zone.js's macrotask queue (setTimeout). Spying on the
+    // service's private sha256 method makes the entire upload chain run as plain
+    // microtasks, so a single setTimeout(r, 0) reliably drains it before
+    // http.expectOne() fires.
+    const flushUpload = () => new Promise<void>(r => setTimeout(r, 0));
+
     beforeEach(() => {
+      spyOn(service as any, 'sha256').and.resolveTo(EMPTY_SHA256);
       fetchSpy = spyOn(window, 'fetch').and.resolveTo(
         new Response(null, { status: 200 })
       );
@@ -289,7 +297,7 @@ describe('MediaService', () => {
       const file = new File([], 'photo.jpg', { type: 'image/jpeg' });
 
       const promise = service.uploadFiles('a1', [file]);
-      await flushAuth();
+      await flushUpload();
 
       http.expectOne('/api/albums/a1/media/upload-url').flush({
         [EMPTY_SHA256]: { url: 'https://gcs/put-url', multipart: false },
@@ -312,7 +320,7 @@ describe('MediaService', () => {
       Object.defineProperty(file, 'size', { value: 30 * 1024 * 1024 + 1, configurable: true });
 
       const promise = service.uploadFiles('a1', [file]);
-      await flushAuth();
+      await flushUpload();
 
       http.expectOne('/api/albums/a1/media/upload-url').flush({
         [EMPTY_SHA256]: { url: 'https://gcs/session', multipart: true },
@@ -333,7 +341,7 @@ describe('MediaService', () => {
       const file = new File([], 'photo.jpg', { type: 'image/jpeg' });
 
       const promise = service.uploadFiles('a1', [file]);
-      await flushAuth();
+      await flushUpload();
 
       http.expectOne('/api/albums/a1/media/upload-url').flush({});
 
@@ -349,7 +357,7 @@ describe('MediaService', () => {
       const promise = service.uploadFiles('a1', [file], (done, total) =>
         progressCalls.push([done, total])
       );
-      await flushAuth();
+      await flushUpload();
 
       http.expectOne('/api/albums/a1/media/upload-url').flush({
         [EMPTY_SHA256]: { url: 'https://gcs/put-url', multipart: false },
