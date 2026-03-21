@@ -19,6 +19,9 @@ export class AlbumListComponent implements OnInit {
   private readonly auth = inject(AuthService);
   readonly isAuthenticated = this.auth.isAuthenticated;
 
+  // Eagerly create observable while the injection context is still active.
+  private readonly authUser$ = toObservable(this.auth.user);
+
   readonly myAlbums = signal<Album[]>([]);
   readonly sharedWithMe = signal<Album[]>([]);
   readonly publicAlbums = signal<Album[]>([]);
@@ -33,7 +36,7 @@ export class AlbumListComponent implements OnInit {
     // Firebase auth starts as undefined (loading). Wait for it to resolve so
     // getIdToken() returns the real token and the server includes private albums.
     await firstValueFrom(
-      toObservable(this.auth.user).pipe(filter(u => u !== undefined))
+      this.authUser$.pipe(filter(u => u !== undefined))
     );
     await this.loadAlbums();
   }

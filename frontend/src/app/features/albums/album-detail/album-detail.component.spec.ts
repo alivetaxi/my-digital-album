@@ -171,38 +171,46 @@ describe('AlbumDetailComponent', () => {
       expect(component.canUpload()).toBeFalse();
     }));
 
-    it('showEditAlbumButton is true for owner and write, false for read', fakeAsync(async () => {
-      const { component: c1 } = createComponent({ album: makeAlbum({ myPermission: 'owner' }) });
-      await c1.ngOnInit(); tick(100);
-      expect(c1.showEditAlbumButton()).toBeTrue();
-
-      const { component: c2 } = createComponent({ album: makeAlbum({ myPermission: 'write' }) });
-      await c2.ngOnInit(); tick(100);
-      expect(c2.showEditAlbumButton()).toBeTrue();
-
-      const { component: c3 } = createComponent({ album: makeAlbum({ myPermission: 'read' }) });
-      await c3.ngOnInit(); tick(100);
-      expect(c3.showEditAlbumButton()).toBeFalse();
+    it('showEditAlbumButton is true for owner', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'owner' }) });
+      await component.ngOnInit(); tick(100);
+      expect(component.showEditAlbumButton()).toBeTrue();
     }));
 
-    it('albumFormReadonly is true only for write member', fakeAsync(async () => {
-      const { component: owner } = createComponent({ album: makeAlbum({ myPermission: 'owner' }) });
-      await owner.ngOnInit(); tick(100);
-      expect(owner.albumFormReadonly()).toBeFalse();
+    it('showEditAlbumButton is true for write member', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'write' }) });
+      await component.ngOnInit(); tick(100);
+      expect(component.showEditAlbumButton()).toBeTrue();
+    }));
 
-      const { component: writer } = createComponent({ album: makeAlbum({ myPermission: 'write' }) });
-      await writer.ngOnInit(); tick(100);
-      expect(writer.albumFormReadonly()).toBeTrue();
+    it('showEditAlbumButton is false for read member', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'read' }) });
+      await component.ngOnInit(); tick(100);
+      expect(component.showEditAlbumButton()).toBeFalse();
+    }));
+
+    it('albumFormReadonly is false for owner', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'owner' }) });
+      await component.ngOnInit(); tick(100);
+      expect(component.albumFormReadonly()).toBeFalse();
+    }));
+
+    it('albumFormReadonly is true for write member', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'write' }) });
+      await component.ngOnInit(); tick(100);
+      expect(component.albumFormReadonly()).toBeTrue();
     }));
 
     it('showManageAccess is true when myPermission is set', fakeAsync(async () => {
-      const { component: withPerm } = createComponent({ album: makeAlbum({ myPermission: 'read' }) });
-      await withPerm.ngOnInit(); tick(100);
-      expect(withPerm.showManageAccess()).toBeTrue();
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'read' }) });
+      await component.ngOnInit(); tick(100);
+      expect(component.showManageAccess()).toBeTrue();
+    }));
 
-      const { component: noPerm } = createComponent({ album: makeAlbum() });
-      await noPerm.ngOnInit(); tick(100);
-      expect(noPerm.showManageAccess()).toBeFalse();
+    it('showManageAccess is false when myPermission is undefined', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum() });
+      await component.ngOnInit(); tick(100);
+      expect(component.showManageAccess()).toBeFalse();
     }));
   });
 
@@ -216,9 +224,8 @@ describe('AlbumDetailComponent', () => {
       const reloadMedia = [makeMedia({ id: 'new-m' })];
       mediaSpy.listMedia.and.resolveTo({ items: reloadMedia, nextCursor: null });
 
-      const promise = component.onUploadDone();
+      component.onUploadDone();
       tick();
-      await promise;
 
       expect(component.mediaItems().length).toBe(1);
       expect(component.mediaItems()[0].id).toBe('new-m');
