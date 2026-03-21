@@ -21,8 +21,6 @@ const makeAlbum = (overrides: Partial<Album> = {}): Album => ({
   coverMediaId: null,
   coverThumbnailUrl: null,
   ownerId: 'uid-owner',
-  ownerType: 'user',
-  groupId: null,
   visibility: 'private',
   mediaCount: 1,
   createdAt: new Date(),
@@ -136,17 +134,75 @@ describe('AlbumDetailComponent', () => {
     }));
   });
 
-  describe('isOwner', () => {
-    it('is true when uid matches album ownerId', fakeAsync(async () => {
-      const { component } = createComponent({ uid: 'uid-owner' });
+  describe('permission-based computed signals', () => {
+    it('isOwner is true when myPermission is owner', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'owner' }) });
       await component.ngOnInit(); tick(100);
       expect(component.isOwner()).toBeTrue();
     }));
 
-    it('is false when uid differs from album ownerId', fakeAsync(async () => {
-      const { component } = createComponent({ uid: 'uid-other' });
+    it('isOwner is false when myPermission is write', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'write' }) });
       await component.ngOnInit(); tick(100);
       expect(component.isOwner()).toBeFalse();
+    }));
+
+    it('isOwner is false when myPermission is undefined', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum() });
+      await component.ngOnInit(); tick(100);
+      expect(component.isOwner()).toBeFalse();
+    }));
+
+    it('canUpload is true for owner', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'owner' }) });
+      await component.ngOnInit(); tick(100);
+      expect(component.canUpload()).toBeTrue();
+    }));
+
+    it('canUpload is true for write member', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'write' }) });
+      await component.ngOnInit(); tick(100);
+      expect(component.canUpload()).toBeTrue();
+    }));
+
+    it('canUpload is false for read member', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'read' }) });
+      await component.ngOnInit(); tick(100);
+      expect(component.canUpload()).toBeFalse();
+    }));
+
+    it('showEditAlbumButton is true for owner and write, false for read', fakeAsync(async () => {
+      const { component: c1 } = createComponent({ album: makeAlbum({ myPermission: 'owner' }) });
+      await c1.ngOnInit(); tick(100);
+      expect(c1.showEditAlbumButton()).toBeTrue();
+
+      const { component: c2 } = createComponent({ album: makeAlbum({ myPermission: 'write' }) });
+      await c2.ngOnInit(); tick(100);
+      expect(c2.showEditAlbumButton()).toBeTrue();
+
+      const { component: c3 } = createComponent({ album: makeAlbum({ myPermission: 'read' }) });
+      await c3.ngOnInit(); tick(100);
+      expect(c3.showEditAlbumButton()).toBeFalse();
+    }));
+
+    it('albumFormReadonly is true only for write member', fakeAsync(async () => {
+      const { component: owner } = createComponent({ album: makeAlbum({ myPermission: 'owner' }) });
+      await owner.ngOnInit(); tick(100);
+      expect(owner.albumFormReadonly()).toBeFalse();
+
+      const { component: writer } = createComponent({ album: makeAlbum({ myPermission: 'write' }) });
+      await writer.ngOnInit(); tick(100);
+      expect(writer.albumFormReadonly()).toBeTrue();
+    }));
+
+    it('showManageAccess is true when myPermission is set', fakeAsync(async () => {
+      const { component: withPerm } = createComponent({ album: makeAlbum({ myPermission: 'read' }) });
+      await withPerm.ngOnInit(); tick(100);
+      expect(withPerm.showManageAccess()).toBeTrue();
+
+      const { component: noPerm } = createComponent({ album: makeAlbum() });
+      await noPerm.ngOnInit(); tick(100);
+      expect(noPerm.showManageAccess()).toBeFalse();
     }));
   });
 

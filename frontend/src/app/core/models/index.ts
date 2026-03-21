@@ -3,12 +3,12 @@ export interface User {
   displayName: string;
   email: string;
   photoURL: string;
-  groupIds: string[];
 }
 
-export type Visibility = 'public' | 'group' | 'private';
+export type Visibility = 'public' | 'private';
 export type ThumbnailStatus = 'pending' | 'ready' | 'failed';
 export type MediaType = 'photo' | 'video';
+export type Permission = 'read' | 'write';
 
 export interface Album {
   id: string;
@@ -16,12 +16,23 @@ export interface Album {
   coverMediaId: string | null;
   coverThumbnailUrl: string | null;
   ownerId: string;
-  ownerType: 'user' | 'group';
-  groupId: string | null;
   visibility: Visibility;
   mediaCount: number;
+  /** Present when the calling user is authenticated and has access. */
+  myPermission?: 'owner' | Permission;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AlbumMember {
+  email: string;
+  userId: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  permission: Permission;
+  /** Only present for pending (not-yet-registered) members. */
+  inviteToken: string | null;
+  addedAt: string;
 }
 
 export interface Media {
@@ -45,14 +56,4 @@ export interface Media {
   thumbnailStatus: ThumbnailStatus;
   createdAt: Date;
   updatedAt: Date;
-}
-
-export interface Group {
-  id: string;
-  name: string;
-  ownerId: string;
-  memberIds: string[];
-  inviteToken: string;
-  inviteTokenExpiresAt: Date;
-  createdAt: Date;
 }

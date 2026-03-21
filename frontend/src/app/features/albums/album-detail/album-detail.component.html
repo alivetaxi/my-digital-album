@@ -9,7 +9,16 @@
       <h1 class="page-title">{{ album()!.title }}</h1>
       <span class="media-count">{{ album()!.mediaCount }}</span>
     }
-    @if (isOwner()) {
+    @if (showManageAccess()) {
+      <button class="icon-btn" title="Manage access" (click)="showAccessForm.set(true)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+        </svg>
+      </button>
+    }
+    @if (showEditAlbumButton()) {
       <button class="icon-btn" title="Edit album" (click)="showEditForm.set(true)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -17,7 +26,7 @@
         </svg>
       </button>
     }
-    @if (isAuthenticated()) {
+    @if (canUpload()) {
       <button class="icon-btn upload-btn" title="Upload" (click)="showUpload.set(true)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
@@ -96,7 +105,16 @@
 @if (showEditForm()) {
   <app-album-form
     [album]="album()"
+    [readonly]="albumFormReadonly()"
     (saved)="onEditSaved($event)"
     (cancelled)="showEditForm.set(false)"
+  />
+}
+
+@if (showAccessForm()) {
+  <app-album-access
+    [albumId]="albumId()"
+    [isOwner]="isOwner()"
+    (closed)="showAccessForm.set(false)"
   />
 }

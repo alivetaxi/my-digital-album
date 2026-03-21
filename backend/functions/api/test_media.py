@@ -70,14 +70,13 @@ class TestListMedia:
         resp = anon_client.get(f"/api/albums/{ALBUM_ID}/media")
         assert resp.status_code == 404
 
-    def test_group_album_returns_403_for_non_member(self, other_client, mocker):
-        album = make_album(owner=TEST_UID, visibility="group", group_id="g-1")
-        group = make_doc("g-1", {"memberIds": [TEST_UID]})
-        db = build_db(album_doc=album, group_doc=group)
+    def test_private_album_returns_404_for_non_member(self, other_client, mocker):
+        album = make_album(owner=TEST_UID, visibility="private")
+        db = build_db(album_doc=album)
         mocker.patch("media.get_db", return_value=db)
 
         resp = other_client.get(f"/api/albums/{ALBUM_ID}/media")
-        assert resp.status_code == 403
+        assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +187,44 @@ class TestRequestUploadUrl:
             db.collection("albums-dev").document(ALBUM_ID).collection("media").document("abc123")
         )
         media_ref.set.assert_not_called()
+
+    def test_write_member_can_request_upload_url(self, other_client, mocker):
+        from test_albums import make_member_entry
+        MEMBER_EMAIL = "member@example.com"
+        entry = make_member_entry(user_id=OTHER_UID, permission="write")
+        album = make_album(
+            owner=TEST_UID,
+            visibility="private",
+            members={MEMBER_EMAIL: entry},
+            member_ids=[OTHER_UID],
+        )
+        db = build_db(album_doc=album)
+        mocker.patch("media.get_db", return_value=db)
+        mocker.patch("media.generate_upload_url", return_value="https://signed-url")
+
+        resp = other_client.post(
+            f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS
+        )
+        assert resp.status_code == 200
+
+    def test_read_member_cannot_request_upload_url(self, other_client, mocker):
+        from test_albums import make_member_entry
+        MEMBER_EMAIL = "member@example.com"
+        entry = make_member_entry(user_id=OTHER_UID, permission="read")
+        album = make_album(
+            owner=TEST_UID,
+            visibility="private",
+            members={MEMBER_EMAIL: entry},
+            member_ids=[OTHER_UID],
+        )
+        db = build_db(album_doc=album)
+        mocker.patch("media.get_db", return_value=db)
+
+        resp = other_client.post(
+            f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS
+        )
+        assert resp.status_code == 403
+        assert resp.json()["error"]["code"] == "PERMISSION_DENIED"
 
     def test_unauthenticated_returns_401(self, anon_client, mocker):
         resp = anon_client.post(

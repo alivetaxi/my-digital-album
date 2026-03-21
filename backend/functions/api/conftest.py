@@ -77,7 +77,8 @@ def make_album(
     visibility: str = "private",
     media_count: int = 0,
     cover_media_id: str | None = None,
-    group_id: str | None = None,
+    members: dict | None = None,
+    member_ids: list | None = None,
 ) -> MagicMock:
     return make_doc(
         album_id,
@@ -85,12 +86,12 @@ def make_album(
             "id": album_id,
             "title": "Test Album",
             "ownerId": owner,
-            "ownerType": "user",
             "visibility": visibility,
             "mediaCount": media_count,
             "coverMediaId": cover_media_id,
             "coverThumbnailPath": None,
-            "groupId": group_id,
+            "members": members or {},
+            "memberIds": member_ids or [],
             "createdAt": datetime(2024, 1, 1, tzinfo=timezone.utc),
             "updatedAt": datetime(2024, 1, 1, tzinfo=timezone.utc),
         },
@@ -138,7 +139,6 @@ def make_user(
             "displayName": display_name,
             "email": email,
             "photoURL": f"https://avatar.example.com/{uid}",
-            "groupIds": [],
         },
     )
 
@@ -169,6 +169,16 @@ def make_media(
     )
 
 
+def _make_albums_query(album_list: list) -> MagicMock:
+    """Return a mock Firestore query that streams album_list."""
+    q = MagicMock()
+    q.where.return_value = q
+    q.order_by.return_value = q
+    q.limit.return_value = q
+    q.stream.side_effect = lambda: iter(album_list)
+    return q
+
+
 def build_db(
     *,
     album_doc: MagicMock | None = None,
@@ -176,9 +186,18 @@ def build_db(
     media_list: list[MagicMock] | None = None,
     user_doc: MagicMock | None = None,
     group_doc: MagicMock | None = None,
+    # Fallback list for all album collection queries
     album_list: list[MagicMock] | None = None,
+    # Per-query overrides: used by list_albums to distinguish mine / shared / public
+    mine_album_list: list[MagicMock] | None = None,
+    member_album_list: list[MagicMock] | None = None,
+    public_album_list: list[MagicMock] | None = None,
     group_list: list[MagicMock] | None = None,
     group_query_list: list[MagicMock] | None = None,
+    # Per-user lookups keyed by uid (for list_members)
+    user_docs_by_uid: dict[str, MagicMock] | None = None,
+    # Results for the "find user by email" query in add_member
+    user_by_email_list: list[MagicMock] | None = None,
 ) -> MagicMock:
     """
     Return a configured MagicMock Firestore client.
@@ -189,11 +208,8 @@ def build_db(
     """
     db = MagicMock()
 
-    # collection("albums")
     albums_col = MagicMock()
-    # collection("users")
     users_col = MagicMock()
-    # collection("groups")
     groups_col = MagicMock()
 
     env = os.environ.get("ENVIRONMENT", "dev")
@@ -228,25 +244,45 @@ def build_db(
     media_ref.update.return_value = None
     media_ref.delete.return_value = None
 
-    # list queries on media subcollection
     media_query = MagicMock()
     media_col.order_by.return_value = media_query
     media_query.start_after.return_value = media_query
     media_query.limit.return_value = media_query
     media_query.stream.return_value = iter(media_list or [])
 
-    # list queries on albums collection
-    albums_query = MagicMock()
-    albums_col.where.return_value = albums_query
-    albums_query.where.return_value = albums_query
-    albums_query.order_by.return_value = albums_query
-    # Use side_effect so each call gets a fresh iterator (return_value would be exhausted after first use)
-    albums_query.stream.side_effect = lambda: iter(album_list or [])
+    # Album collection queries — dispatch per first where() field when specific
+    # lists are provided; fall back to album_list otherwise.
+    def _albums_where(field, *args):
+        if field == "ownerId" and mine_album_list is not None:
+            return _make_albums_query(mine_album_list)
+        if field == "memberIds" and member_album_list is not None:
+            return _make_albums_query(member_album_list)
+        if field == "visibility" and public_album_list is not None:
+            return _make_albums_query(public_album_list)
+        return _make_albums_query(album_list or [])
+
+    albums_col.where.side_effect = _albums_where
 
     # --- users ---
     user_ref = MagicMock()
-    users_col.document.return_value = user_ref
-    user_ref.get.return_value = user_doc or make_doc(TEST_UID, {"groupIds": []})
+
+    def _users_document(uid):
+        if user_docs_by_uid and uid in user_docs_by_uid:
+            ref = MagicMock()
+            ref.get.return_value = user_docs_by_uid[uid]
+            return ref
+        r = MagicMock()
+        r.get.return_value = user_doc or make_doc(TEST_UID, {"groupIds": []})
+        return r
+
+    users_col.document.side_effect = _users_document
+
+    # "find user by email" query (used by add_member)
+    users_query = MagicMock()
+    users_col.where.return_value = users_query
+    users_query.where.return_value = users_query
+    users_query.limit.return_value = users_query
+    users_query.stream.side_effect = lambda: iter(user_by_email_list or [])
 
     # --- groups ---
     group_ref = MagicMock()
@@ -255,13 +291,10 @@ def build_db(
     group_ref.set.return_value = None
     group_ref.update.return_value = None
 
-    # Query support (list_my_groups uses .where().stream();
-    # join_group uses .where().limit().stream())
     groups_query = MagicMock()
     groups_col.where.return_value = groups_query
     groups_query.where.return_value = groups_query
     groups_query.limit.return_value = groups_query
-    # group_query_list: results of invite-token lookup; group_list: results of member query
     groups_query.stream.side_effect = lambda: iter(
         group_query_list if group_query_list is not None else (group_list or [])
     )

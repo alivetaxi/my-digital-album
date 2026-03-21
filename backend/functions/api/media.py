@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from google.cloud import firestore
 from pydantic import BaseModel
 
-from shared.access import can_read_album
+from shared.access import can_read_album, can_write_album
 from shared.auth import get_uid, require_auth
 from shared.db import get_col, get_db
 from shared.errors import error_response
@@ -99,9 +99,14 @@ def request_upload_url(
     if not album_doc.exists:
         return error_response("ALBUM_NOT_FOUND")
 
-    allowed, err = can_read_album(album_doc.to_dict(), uid, db)
+    album = album_doc.to_dict()
+    allowed, err = can_read_album(album, uid, db)
     if not allowed:
         return error_response(err or "PERMISSION_DENIED")
+
+    # Read-only members may not upload
+    if not can_write_album(album, uid):
+        return error_response("PERMISSION_DENIED")
 
     bucket = os.environ.get("MEDIA_BUCKET", "")
     now = datetime.now(timezone.utc)
@@ -114,6 +119,7 @@ def request_upload_url(
         media_id = item.sha256
         ext = MIME_TO_EXT.get(item.mimeType, "bin")
         storage_path = f"media/{uid}/{album_id}/{media_id}/original.{ext}"
+
 
         media_ref = (
             db.collection(get_col("albums"))
@@ -211,7 +217,8 @@ def update_media(
     media = media_doc.to_dict()
     album = album_doc.to_dict()
 
-    if media.get("uploaderId") != uid and album.get("ownerId") != uid:
+    # Allow: media uploader, album owner, or a write member
+    if media.get("uploaderId") != uid and not can_write_album(album, uid):
         return error_response("PERMISSION_DENIED")
 
     updates: dict = {"updatedAt": datetime.now(timezone.utc)}

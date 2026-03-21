@@ -1,54 +1,43 @@
 import { Component, inject, input, OnInit, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { AlbumApiError, AlbumService } from '../../../core/services/album.service';
-import { Album, Group, Visibility } from '../../../core/models';
-import { GroupService } from '../../../core/services/group.service';
+import { Album, Visibility } from '../../../core/models';
 
 @Component({
   selector: 'app-album-form',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule],
   templateUrl: './album-form.component.html',
   styleUrl: './album-form.component.scss',
 })
 export class AlbumFormComponent implements OnInit {
   /** When provided, the form is in edit mode. */
   readonly album = input<Album | null>(null);
+  /** When true, fields are shown but Save is disabled (write-member view). */
+  readonly readonly = input(false);
 
   readonly saved = output<Album>();
   readonly cancelled = output<void>();
 
   private readonly albumService = inject(AlbumService);
-  private readonly groupService = inject(GroupService);
 
   readonly title = signal('');
   readonly visibility = signal<Visibility>('private');
-  readonly selectedGroupId = signal<string | null>(null);
-  readonly groups = signal<Group[]>([]);
   readonly isSaving = signal(false);
   readonly errorMessage = signal<string | null>(null);
 
-  async ngOnInit() {
+  ngOnInit() {
     const a = this.album();
     if (a) {
       this.title.set(a.title);
       this.visibility.set(a.visibility);
-      if (a.groupId) this.selectedGroupId.set(a.groupId);
     }
-    try {
-      this.groups.set(await this.groupService.listMyGroups());
-    } catch { /* non-critical */ }
   }
 
   async save() {
-    if (!this.title().trim()) return;
-    if (this.visibility() === 'group' && !this.selectedGroupId()) return;
+    if (!this.title().trim() || this.readonly()) return;
     this.isSaving.set(true);
     this.errorMessage.set(null);
-
-    const groupId = this.visibility() === 'group' ? this.selectedGroupId() : null;
-
     try {
       let result: Album;
       const a = this.album();
@@ -56,13 +45,11 @@ export class AlbumFormComponent implements OnInit {
         result = await this.albumService.updateAlbum(a.id, {
           title: this.title().trim(),
           visibility: this.visibility(),
-          groupId,
         });
       } else {
         result = await this.albumService.createAlbum({
           title: this.title().trim(),
           visibility: this.visibility(),
-          groupId,
         });
       }
       this.saved.emit(result);
@@ -81,6 +68,5 @@ export class AlbumFormComponent implements OnInit {
 
   setVisibility(v: Visibility) {
     this.visibility.set(v);
-    if (v !== 'group') this.selectedGroupId.set(null);
   }
 }

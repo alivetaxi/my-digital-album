@@ -1,0 +1,121 @@
+<div class="modal-backdrop" (click)="close()"></div>
+<div class="modal">
+  <header class="modal-header">
+    <h2>{{ isOwner() ? 'Manage Access' : 'Who has access' }}</h2>
+    <button class="close-btn" (click)="close()" aria-label="Close">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="modal-body">
+    @if (isLoading()) {
+      <p class="status-msg">Loading…</p>
+    } @else if (errorMessage()) {
+      <p class="error-msg">{{ errorMessage() }}</p>
+    } @else {
+      @if (members().length === 0) {
+        <p class="status-msg empty-msg">No members yet.</p>
+      } @else {
+        <ul class="member-list">
+          @for (member of members(); track member.email) {
+            <li class="member-row">
+              <div class="member-info">
+                @if (member.photoURL) {
+                  <img class="avatar" [src]="member.photoURL" [alt]="member.displayName ?? member.email" referrerpolicy="no-referrer" />
+                } @else {
+                  <div class="avatar-placeholder">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                    </svg>
+                  </div>
+                }
+                <div class="member-text">
+                  <span class="member-name">{{ member.displayName ?? member.email }}</span>
+                  @if (member.displayName) {
+                    <span class="member-email">{{ member.email }}</span>
+                  }
+                  @if (member.inviteToken) {
+                    <span class="pending-badge">Pending invite</span>
+                  }
+                </div>
+              </div>
+
+              @if (isOwner()) {
+                <div class="member-actions">
+                  <select
+                    class="permission-select"
+                    [value]="member.permission"
+                    [disabled]="savingEmail() === member.email"
+                    (change)="changePermission(member.email, $any($event.target).value)"
+                  >
+                    <option value="read">Read</option>
+                    <option value="write">Write</option>
+                  </select>
+
+                  @if (member.inviteToken) {
+                    <button class="action-btn copy-btn" title="Copy invite link" (click)="copyInviteLink(member)">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                    </button>
+                  }
+
+                  <button
+                    class="action-btn remove-btn"
+                    title="Remove"
+                    [disabled]="removingEmail() === member.email"
+                    (click)="removeMember(member.email)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                      <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                    </svg>
+                  </button>
+                </div>
+              } @else {
+                <span class="permission-badge">{{ member.permission }}</span>
+              }
+            </li>
+          }
+        </ul>
+      }
+
+      @if (isOwner()) {
+        <div class="add-member-form">
+          <h3 class="add-title">Add person</h3>
+          <div class="add-row">
+            <input
+              class="text-input"
+              type="email"
+              placeholder="Email address"
+              [value]="newEmail()"
+              (input)="newEmail.set($any($event.target).value)"
+              [disabled]="isAdding()"
+            />
+            <select
+              class="permission-select"
+              [value]="newPermission()"
+              [disabled]="isAdding()"
+              (change)="newPermission.set($any($event.target).value)"
+            >
+              <option value="read">Read</option>
+              <option value="write">Write</option>
+            </select>
+            <button
+              class="btn-primary add-btn"
+              [disabled]="isAdding() || !newEmail().trim()"
+              (click)="addMember()"
+            >
+              {{ isAdding() ? 'Adding…' : 'Add' }}
+            </button>
+          </div>
+          @if (addError()) {
+            <p class="error-msg">{{ addError() }}</p>
+          }
+        </div>
+      }
+    }
+  </div>
+</div>

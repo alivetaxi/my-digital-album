@@ -6,11 +6,12 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { MediaService } from '../../../core/services/media.service';
 import { UploadComponent } from '../../media/upload/upload.component';
 import { AlbumFormComponent } from '../album-form/album-form.component';
+import { AlbumAccessComponent } from '../album-access/album-access.component';
 
 @Component({
   selector: 'app-album-detail',
   standalone: true,
-  imports: [RouterLink, UploadComponent, AlbumFormComponent],
+  imports: [RouterLink, UploadComponent, AlbumFormComponent, AlbumAccessComponent],
   templateUrl: './album-detail.component.html',
   styleUrl: './album-detail.component.scss',
 })
@@ -22,10 +23,17 @@ export class AlbumDetailComponent implements OnInit, OnDestroy {
 
   readonly isAuthenticated = computed(() => this.auth.uid() !== null);
 
-  readonly isOwner = computed(() => {
-    const album = this.album();
-    return album !== null && album.ownerId === this.auth.uid();
+  readonly isOwner = computed(() => this.album()?.myPermission === 'owner');
+  readonly canUpload = computed(() => {
+    const p = this.album()?.myPermission;
+    return p === 'owner' || p === 'write';
   });
+  readonly showEditAlbumButton = computed(() => {
+    const p = this.album()?.myPermission;
+    return p === 'owner' || p === 'write';
+  });
+  readonly albumFormReadonly = computed(() => this.album()?.myPermission === 'write');
+  readonly showManageAccess = computed(() => this.album()?.myPermission !== undefined);
 
   readonly albumId = signal('');
   readonly album = signal<Album | null>(null);
@@ -35,6 +43,7 @@ export class AlbumDetailComponent implements OnInit, OnDestroy {
   readonly loadError = signal(false);
   readonly showUpload = signal(false);
   readonly showEditForm = signal(false);
+  readonly showAccessForm = signal(false);
 
   readonly sentinel = viewChild<ElementRef>('sentinel');
 
