@@ -12,11 +12,12 @@ from shared.access import can_read_album
 from shared.auth import get_uid, require_auth
 from shared.db import get_col, get_db
 from shared.errors import error_response
-from shared.storage import generate_read_url, generate_upload_url, get_storage_client
+from shared.storage import generate_read_url, generate_resumable_upload_url, generate_upload_url, get_storage_client
 
 router = APIRouter(prefix="/albums", tags=["media"])
 
-MAX_FILE_SIZE = 30 * 1024 * 1024  # 30 MB
+MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
+MULTIPART_THRESHOLD = 30 * 1024 * 1024  # files above this use resumable upload
 MAX_BATCH = 50
 
 MIME_TO_EXT: dict[str, str] = {
@@ -144,7 +145,12 @@ def request_upload_url(
                 }
             )
 
-        result[media_id] = generate_upload_url(bucket, storage_path, item.mimeType)
+        if item.size > MULTIPART_THRESHOLD:
+            url = generate_resumable_upload_url(bucket, storage_path, item.mimeType, item.size)
+            result[media_id] = {"url": url, "multipart": True}
+        else:
+            url = generate_upload_url(bucket, storage_path, item.mimeType)
+            result[media_id] = {"url": url, "multipart": False}
 
     return result
 

@@ -34,7 +34,9 @@ const ACCEPTED_MIME_TYPES = new Set([
   'video/mp4',
   'video/quicktime',
 ]);
-const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30 MB
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
+const MULTIPART_THRESHOLD = 30 * 1024 * 1024; // 30 MB — above this, use resumable upload
+const CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB per chunk (must be multiple of 256 KB)
 const MAX_BATCH = 50;
 
 @Injectable({ providedIn: 'root' })
@@ -190,12 +192,12 @@ export class MediaService {
       }))
     );
 
-    // Request signed upload URLs
+    // Request upload URLs (signed PUT for small files, resumable session URI for large)
     const headers = await this.authHeaders();
-    let uploadUrls: Record<string, string>;
+    let uploadUrls: Record<string, { url: string; multipart: boolean }>;
     try {
       uploadUrls = await firstValueFrom(
-        this.http.post<Record<string, string>>(
+        this.http.post<Record<string, { url: string; multipart: boolean }>>(
           `/api/albums/${albumId}/media/upload-url`,
           items,
           { headers }
@@ -205,7 +207,7 @@ export class MediaService {
       return this.handleError(err);
     }
 
-    // Upload files directly to GCS via signed URLs
+    // Upload files directly to GCS
     const total = files.length;
     let done = 0;
     const mediaIds: string[] = [];
@@ -213,14 +215,18 @@ export class MediaService {
     await Promise.all(
       files.map(async (file, i) => {
         const mediaId = items[i].sha256;
-        const url = uploadUrls[mediaId];
-        if (!url) return;
+        const entry = uploadUrls[mediaId];
+        if (!entry) return;
 
-        await fetch(url, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type },
-          body: file,
-        });
+        if (entry.multipart) {
+          await this.uploadChunked(entry.url, file);
+        } else {
+          await fetch(entry.url, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type },
+            body: file,
+          });
+        }
 
         mediaIds.push(mediaId);
         done++;
@@ -229,6 +235,30 @@ export class MediaService {
     );
 
     return mediaIds;
+  }
+
+  /** Upload a file to a GCS resumable session URI in CHUNK_SIZE chunks. */
+  private async uploadChunked(sessionUri: string, file: File): Promise<void> {
+    let offset = 0;
+    while (offset < file.size) {
+      const end = Math.min(offset + CHUNK_SIZE, file.size);
+      const chunk = file.slice(offset, end);
+      const isLast = end === file.size;
+      const response = await fetch(sessionUri, {
+        method: 'PUT',
+        headers: {
+          'Content-Range': `bytes ${offset}-${end - 1}/${file.size}`,
+          'Content-Type': file.type,
+        },
+        body: chunk,
+      });
+      // GCS returns 308 Resume Incomplete for intermediate chunks,
+      // and 200/201 for the final chunk.
+      if (!response.ok && !(response.status === 308 && !isLast)) {
+        throw new Error(`Resumable upload failed at offset ${offset}: HTTP ${response.status}`);
+      }
+      offset = end;
+    }
   }
 
   private async sha256(file: File): Promise<string> {

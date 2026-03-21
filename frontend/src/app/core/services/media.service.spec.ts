@@ -62,8 +62,12 @@ describe('MediaService', () => {
   });
 
   describe('validateFiles', () => {
-    const makeFile = (name: string, type: string, size: number) =>
-      new File(['x'.repeat(size)], name, { type });
+    // Use Object.defineProperty to spoof file sizes without allocating large buffers.
+    const makeFile = (name: string, type: string, size: number) => {
+      const f = new File([], name, { type });
+      Object.defineProperty(f, 'size', { value: size, configurable: true });
+      return f;
+    };
 
     it('accepts valid JPEG files', () => {
       const file = makeFile('photo.jpg', 'image/jpeg', 1024);
@@ -80,8 +84,15 @@ describe('MediaService', () => {
       expect(rejected[0].reason).toBe('format');
     });
 
-    it('rejects files over 30 MB', () => {
-      const file = makeFile('big.jpg', 'image/jpeg', 31 * 1024 * 1024);
+    it('accepts files between 30 MB and 500 MB (multipart threshold)', () => {
+      const file = makeFile('video.mp4', 'video/mp4', 100 * 1024 * 1024);
+      const { accepted, rejected } = service.validateFiles([file]);
+      expect(accepted.length).toBe(1);
+      expect(rejected.length).toBe(0);
+    });
+
+    it('rejects files over 500 MB', () => {
+      const file = makeFile('huge.mp4', 'video/mp4', 501 * 1024 * 1024);
       const { accepted, rejected } = service.validateFiles([file]);
       expect(accepted.length).toBe(0);
       expect(rejected[0].reason).toBe('size');
@@ -259,6 +270,93 @@ describe('MediaService', () => {
       await expectAsync(promise).toBeRejectedWith(
         jasmine.objectContaining({ message: 'Media not found.' })
       );
+    });
+  });
+
+  describe('uploadFiles', () => {
+    // SHA-256 of an empty buffer (File created with no content)
+    const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+    let fetchSpy: jasmine.Spy;
+
+    beforeEach(() => {
+      fetchSpy = spyOn(window, 'fetch').and.resolveTo(
+        new Response(null, { status: 200 })
+      );
+    });
+
+    it('uses single PUT for small files (under multipart threshold)', async () => {
+      const file = new File([], 'photo.jpg', { type: 'image/jpeg' });
+
+      const promise = service.uploadFiles('a1', [file]);
+      await flushAuth();
+
+      http.expectOne('/api/albums/a1/media/upload-url').flush({
+        [EMPTY_SHA256]: { url: 'https://gcs/put-url', multipart: false },
+      });
+
+      const mediaIds = await promise;
+      expect(mediaIds).toEqual([EMPTY_SHA256]);
+      expect(fetchSpy).toHaveBeenCalledOnceWith(
+        'https://gcs/put-url',
+        jasmine.objectContaining({ method: 'PUT' })
+      );
+      // No Content-Range for a single PUT
+      const callHeaders = fetchSpy.calls.first().args[1].headers as Record<string, string>;
+      expect('Content-Range' in callHeaders).toBeFalse();
+    });
+
+    it('uses chunked PUT with Content-Range for large files', async () => {
+      const file = new File([], 'video.mp4', { type: 'video/mp4' });
+      // Spoof size just over MULTIPART_THRESHOLD (30 MB)
+      Object.defineProperty(file, 'size', { value: 30 * 1024 * 1024 + 1, configurable: true });
+
+      const promise = service.uploadFiles('a1', [file]);
+      await flushAuth();
+
+      http.expectOne('/api/albums/a1/media/upload-url').flush({
+        [EMPTY_SHA256]: { url: 'https://gcs/session', multipart: true },
+      });
+
+      await promise;
+
+      // All PUT requests should go to the session URI and carry Content-Range
+      expect(fetchSpy.calls.count()).toBeGreaterThan(0);
+      for (const call of fetchSpy.calls.all()) {
+        expect(call.args[0]).toBe('https://gcs/session');
+        const headers = call.args[1].headers as Record<string, string>;
+        expect(headers['Content-Range']).toBeTruthy();
+      }
+    });
+
+    it('skips upload and returns empty array when server returns no URL', async () => {
+      const file = new File([], 'photo.jpg', { type: 'image/jpeg' });
+
+      const promise = service.uploadFiles('a1', [file]);
+      await flushAuth();
+
+      http.expectOne('/api/albums/a1/media/upload-url').flush({});
+
+      const mediaIds = await promise;
+      expect(mediaIds).toEqual([]);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('calls onProgress after each file completes', async () => {
+      const file = new File([], 'photo.jpg', { type: 'image/jpeg' });
+      const progressCalls: [number, number][] = [];
+
+      const promise = service.uploadFiles('a1', [file], (done, total) =>
+        progressCalls.push([done, total])
+      );
+      await flushAuth();
+
+      http.expectOne('/api/albums/a1/media/upload-url').flush({
+        [EMPTY_SHA256]: { url: 'https://gcs/put-url', multipart: false },
+      });
+
+      await promise;
+      expect(progressCalls).toEqual([[1, 1]]);
     });
   });
 });

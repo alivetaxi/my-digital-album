@@ -96,7 +96,26 @@ class TestRequestUploadUrl:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["abc123"] == "https://signed-url"
+        assert data["abc123"]["url"] == "https://signed-url"
+        assert data["abc123"]["multipart"] is False
+
+    def test_large_file_returns_resumable_url(self, client, mocker):
+        album = make_album(owner=TEST_UID, visibility="private")
+        db = build_db(album_doc=album)
+        mocker.patch("media.get_db", return_value=db)
+        mocker.patch("media.generate_resumable_upload_url", return_value="https://resumable-session")
+
+        large_item = [{
+            "sha256": "largehash",
+            "mimeType": "video/mp4",
+            "filename": "video.mp4",
+            "size": 50 * 1024 * 1024,  # 50 MB — over MULTIPART_THRESHOLD (30 MB)
+        }]
+        resp = client.post(f"/api/albums/{ALBUM_ID}/media/upload-url", json=large_item)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["largehash"]["url"] == "https://resumable-session"
+        assert data["largehash"]["multipart"] is True
 
     def test_creates_firestore_doc_with_pending_status(self, client, mocker):
         album = make_album(owner=TEST_UID, visibility="private")
@@ -130,7 +149,7 @@ class TestRequestUploadUrl:
                 "sha256": "toobig",
                 "mimeType": "image/jpeg",
                 "filename": "big.jpg",
-                "size": 31 * 1024 * 1024,  # 31 MB — over limit
+                "size": 501 * 1024 * 1024,  # 501 MB — over 500 MB limit
             }
         ]
         resp = client.post(f"/api/albums/{ALBUM_ID}/media/upload-url", json=oversized)
@@ -163,9 +182,11 @@ class TestRequestUploadUrl:
             f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS
         )
         assert resp.status_code == 200
-        assert resp.json()["abc123"] == "https://signed-url"
+        assert resp.json()["abc123"]["url"] == "https://signed-url"
 
-        media_ref = db.collection("albums-dev").document(ALBUM_ID).collection("media").document("abc123")
+        media_ref = (
+            db.collection("albums-dev").document(ALBUM_ID).collection("media").document("abc123")
+        )
         media_ref.set.assert_not_called()
 
     def test_unauthenticated_returns_401(self, anon_client, mocker):

@@ -38,6 +38,23 @@ def generate_read_url(
     )
 
 
+def generate_resumable_upload_url(
+    bucket_name: str,
+    blob_path: str,
+    content_type: str,
+    size: int,
+) -> str:
+    """Create a GCS resumable upload session URI for large files.
+
+    The returned URL is used by the client to PUT data in chunks using
+    Content-Range headers.  No signing required — the session itself is
+    authenticated by GCS.
+    """
+    client = get_storage_client()
+    blob = client.bucket(bucket_name).blob(blob_path)
+    return blob.create_resumable_upload_session(content_type=content_type, size=size)
+
+
 def generate_upload_url(
     bucket_name: str,
     blob_path: str,

@@ -79,15 +79,24 @@ def _process(
     already_ready = _is_media_ready(album_id, media_id)
 
     client = gcs.Client(project=os.environ.get("GCP_PROJECT_ID"))
-    file_bytes = client.bucket(bucket_name).blob(object_name).download_as_bytes()
+    suffix = os.path.splitext(object_name)[1] or ".bin"
+    tmp_fd, src_path = tempfile.mkstemp(suffix=suffix)
+    os.close(tmp_fd)
+    try:
+        client.bucket(bucket_name).blob(object_name).download_to_filename(src_path)
 
-    duration: float | None = None
-    if content_type in IMAGE_TYPES or content_type.startswith("image/"):
-        thumbnail_bytes, width, height, metadata = _process_image(file_bytes, content_type)
-    elif content_type in VIDEO_TYPES or content_type.startswith("video/"):
-        thumbnail_bytes, width, height, duration, metadata = _process_video(file_bytes)
-    else:
-        raise InvalidFileFormatError(f"Unsupported content type: {content_type}")
+        duration: float | None = None
+        if content_type in IMAGE_TYPES or content_type.startswith("image/"):
+            thumbnail_bytes, width, height, metadata = _process_image(src_path, content_type)
+        elif content_type in VIDEO_TYPES or content_type.startswith("video/"):
+            thumbnail_bytes, width, height, duration, metadata = _process_video(src_path)
+        else:
+            raise InvalidFileFormatError(f"Unsupported content type: {content_type}")
+    finally:
+        try:
+            os.unlink(src_path)
+        except Exception:
+            pass
 
     # Upload thumbnail
     thumb_bucket_name = os.environ.get("THUMBNAILS_BUCKET", bucket_name)
@@ -116,7 +125,7 @@ def _process(
 
 
 def _process_image(
-    file_bytes: bytes, content_type: str
+    src_path: str, content_type: str
 ) -> tuple[bytes, int, int, dict]:
     """Resize image to THUMBNAIL_WIDTH and extract EXIF. Returns (jpeg_bytes, width, height, metadata)."""
     try:
@@ -127,7 +136,7 @@ def _process_image(
 
         from PIL import Image, ImageOps
 
-        img = Image.open(io.BytesIO(file_bytes))
+        img = Image.open(src_path)
         # Apply EXIF orientation before reading dimensions — phones store portrait
         # shots with a rotation tag, so without this the thumbnail would be sideways.
         img = ImageOps.exif_transpose(img)
@@ -212,19 +221,15 @@ def _parse_video_tags(tags: dict) -> dict:
     return metadata
 
 
-def _process_video(file_bytes: bytes) -> tuple[bytes, int, int, float | None, dict]:
+def _process_video(src_path: str) -> tuple[bytes, int, int, float | None, dict]:
     """Extract thumbnail frame and metadata from video via imageio-ffmpeg.
 
     Uses imageio_ffmpeg.read_frames() for frame/dimensions/duration (no ffprobe
     required) and ffmpeg -i stderr for creation_time / location tags.
     Returns (jpeg_bytes, width, height, duration_seconds, metadata).
     """
-    tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
     try:
-        tmp.write(file_bytes)
-        tmp.flush()
-        tmp.close()
-        video_path = tmp.name
+        video_path = src_path
 
         # --- metadata tags from ffmpeg stderr ---
         tags = _extract_video_tags(video_path)
@@ -277,11 +282,6 @@ def _process_video(file_bytes: bytes) -> tuple[bytes, int, int, float | None, di
         if "cannot identify image file" in msg:
             raise CorruptedFileError(str(exc)) from exc
         raise
-    finally:
-        try:
-            os.unlink(tmp.name)
-        except Exception:
-            pass
 
 
 def _parse_iso6709(location: str) -> tuple[float | None, float | None]:

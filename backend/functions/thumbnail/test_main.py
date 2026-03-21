@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import io
+import os
+import tempfile
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +12,16 @@ import pytest
 # Since thumbnail/ is a package (has __init__.py), import via the package path
 # to avoid colliding with api/main.py when both test suites run together.
 import thumbnail.main as thumb
+
+
+def _write_tmp(data: bytes, suffix: str = ".jpg") -> str:
+    """Write bytes to a named temp file and return its path. Caller must os.unlink it."""
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    try:
+        os.write(fd, data)
+    finally:
+        os.close(fd)
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -61,37 +73,53 @@ class TestPathMatching:
 class TestProcessImage:
     def test_jpeg_produces_thumbnail_and_dimensions(self):
         jpeg = _make_jpeg(800, 600)
-        thumbnail_bytes, width, height, exif = thumb._process_image(jpeg, "image/jpeg")
+        path = _write_tmp(jpeg, ".jpg")
+        try:
+            thumbnail_bytes, width, height, exif = thumb._process_image(path, "image/jpeg")
 
-        assert isinstance(thumbnail_bytes, bytes) and len(thumbnail_bytes) > 0
-        assert width == 800
-        assert height == 600
+            assert isinstance(thumbnail_bytes, bytes) and len(thumbnail_bytes) > 0
+            assert width == 800
+            assert height == 600
 
-        from PIL import Image
-        img = Image.open(io.BytesIO(thumbnail_bytes))
-        assert img.width == 400
-        assert img.height == 300  # aspect ratio preserved
+            from PIL import Image
+            img = Image.open(io.BytesIO(thumbnail_bytes))
+            assert img.width == 400
+            assert img.height == 300  # aspect ratio preserved
+        finally:
+            os.unlink(path)
 
     def test_png_is_processed(self):
         from PIL import Image
 
         buf = io.BytesIO()
         Image.new("RGB", (600, 400)).save(buf, format="PNG")
-        _, w, h, _ = thumb._process_image(buf.getvalue(), "image/png")
-        assert w == 600
-        assert h == 400
+        path = _write_tmp(buf.getvalue(), ".png")
+        try:
+            _, w, h, _ = thumb._process_image(path, "image/png")
+            assert w == 600
+            assert h == 400
+        finally:
+            os.unlink(path)
 
     def test_webp_processed_successfully(self):
         from PIL import Image
 
         buf = io.BytesIO()
         Image.new("RGB", (400, 300)).save(buf, format="WEBP")
-        thumbnail_bytes, w, h, _ = thumb._process_image(buf.getvalue(), "image/webp")
-        assert w == 400
+        path = _write_tmp(buf.getvalue(), ".webp")
+        try:
+            thumbnail_bytes, w, h, _ = thumb._process_image(path, "image/webp")
+            assert w == 400
+        finally:
+            os.unlink(path)
 
     def test_corrupted_bytes_raise_corrupted_error(self):
-        with pytest.raises(thumb.CorruptedFileError):
-            thumb._process_image(b"not an image", "image/jpeg")
+        path = _write_tmp(b"not an image", ".jpg")
+        try:
+            with pytest.raises(thumb.CorruptedFileError):
+                thumb._process_image(path, "image/jpeg")
+        finally:
+            os.unlink(path)
 
 
 # ---------------------------------------------------------------------------
@@ -136,8 +164,12 @@ class TestExtractExif:
 
 class TestProcess:
     def _mock_gcs(self, file_bytes: bytes) -> MagicMock:
+        def _download(path: str) -> None:
+            with open(path, "wb") as fh:
+                fh.write(file_bytes)
+
         blob = MagicMock()
-        blob.download_as_bytes.return_value = file_bytes
+        blob.download_to_filename.side_effect = _download
         bucket = MagicMock()
         bucket.blob.return_value = blob
         client = MagicMock()
@@ -226,13 +258,17 @@ class TestProcessVideo:
             return_value=MagicMock(returncode=1, stderr="", stdout=""),
         )
 
+    # _process_video now accepts a file path (str); imageio_ffmpeg and subprocess
+    # are mocked so the file doesn't need to actually exist.
+    _FAKE_PATH = "/tmp/test_video.mp4"
+
     def test_happy_path_returns_thumbnail_and_dimensions(self, mocker):
         frame = self._make_raw_frame(1280, 720)
         meta = {"size": (1280, 720), "duration": 10.5, "fps": 30.0}
         mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
         self._no_tags_subprocess(mocker)
 
-        thumbnail_bytes, width, height, duration, metadata = thumb._process_video(b"fake-video")
+        thumbnail_bytes, width, height, duration, metadata = thumb._process_video(self._FAKE_PATH)
 
         assert isinstance(thumbnail_bytes, bytes) and len(thumbnail_bytes) > 0
         assert width == 1280
@@ -244,13 +280,12 @@ class TestProcessVideo:
         assert img.width == 400  # resized to THUMBNAIL_WIDTH
 
     def test_no_extractable_frame_raises_corrupted(self, mocker):
-        # reader yields meta but no frames
         meta = {"size": (1280, 720), "duration": 5.0}
         mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, None))
         self._no_tags_subprocess(mocker)
 
         with pytest.raises(thumb.CorruptedFileError):
-            thumb._process_video(b"corrupt-video")
+            thumb._process_video(self._FAKE_PATH)
 
     def test_zero_width_raises_corrupted(self, mocker):
         frame = self._make_raw_frame(1280, 720)
@@ -259,7 +294,7 @@ class TestProcessVideo:
         self._no_tags_subprocess(mocker)
 
         with pytest.raises(thumb.CorruptedFileError):
-            thumb._process_video(b"fake-video")
+            thumb._process_video(self._FAKE_PATH)
 
     def test_extracts_creation_time_as_taken_at(self, mocker):
         frame = self._make_raw_frame(640, 480)
@@ -271,7 +306,7 @@ class TestProcessVideo:
             return_value=MagicMock(returncode=1, stderr=stderr, stdout=""),
         )
 
-        _, _, _, _, metadata = thumb._process_video(b"fake-video")
+        _, _, _, _, metadata = thumb._process_video(self._FAKE_PATH)
         assert metadata["takenAt"] == datetime(2023, 6, 15, 10, 30, 0, tzinfo=timezone.utc)
 
     def test_extracts_gps_location_as_taken_place(self, mocker):
@@ -285,7 +320,7 @@ class TestProcessVideo:
         )
         mocker.patch("thumbnail.main._reverse_geocode", return_value="Tokyo, Japan")
 
-        _, _, _, _, metadata = thumb._process_video(b"fake-video")
+        _, _, _, _, metadata = thumb._process_video(self._FAKE_PATH)
         assert metadata["takenPlace"]["lat"] == pytest.approx(35.6894)
         assert metadata["takenPlace"]["lng"] == pytest.approx(139.6917)
         assert metadata["takenPlace"]["placeName"] == "Tokyo, Japan"
@@ -319,27 +354,30 @@ class TestParseIso6709:
 class TestProcessVideoIntegration:
     def test_video_content_type_calls_process_video(self, mocker):
         jpeg = _make_jpeg()
-        gcs = MagicMock()
-        gcs.Client.return_value.bucket.return_value.blob.return_value.download_as_bytes.return_value = b"fake-video"
+        # download_to_filename is a no-op because _process_video is mocked
+        gcs_client = MagicMock()
         mock_process_video = mocker.patch(
             "thumbnail.main._process_video",
             return_value=(jpeg, 1280, 720, 10.5, {}),
         )
         mock_update = mocker.patch("thumbnail.main._update_media")
         mocker.patch("thumbnail.main._increment_media_count")
+        mocker.patch("thumbnail.main._is_media_ready", return_value=False)
 
-        with patch("google.cloud.storage.Client", return_value=gcs.Client.return_value):
+        with patch("google.cloud.storage.Client", return_value=gcs_client):
             thumb._process("bucket", "media/u/a/m/original.mp4", "u", "a", "m", "video/mp4")
 
         mock_process_video.assert_called_once()
+        # Argument must be a string path, not bytes
+        assert isinstance(mock_process_video.call_args[0][0], str)
         fields = mock_update.call_args[0][2]
         assert fields["thumbnailStatus"] == "ready"
         assert fields["duration"] == 10.5
         assert fields["width"] == 1280
 
     def test_unsupported_content_type_raises_invalid_format(self, mocker):
+        # download_to_filename is auto-mocked (returns MagicMock, does not raise)
         gcs_mock = MagicMock()
-        gcs_mock.bucket.return_value.blob.return_value.download_as_bytes.return_value = b"data"
 
         with patch("google.cloud.storage.Client", return_value=gcs_mock):
             with pytest.raises(thumb.InvalidFileFormatError):
