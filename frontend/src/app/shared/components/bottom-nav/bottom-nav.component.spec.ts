@@ -10,7 +10,6 @@ const makeUser = (overrides: Partial<User> = {}): User => ({
   displayName: 'Alice',
   email: 'alice@example.com',
   photoURL: 'https://avatar/alice',
-  groupIds: [],
   ...overrides,
 });
 

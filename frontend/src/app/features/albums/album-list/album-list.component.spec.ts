@@ -14,8 +14,6 @@ const makeAlbum = (overrides: Partial<Album> = {}): Album => ({
   coverMediaId: null,
   coverThumbnailUrl: null,
   ownerId: 'uid-1',
-  ownerType: 'user',
-  groupId: null,
   visibility: 'private',
   mediaCount: 0,
   createdAt: new Date(),
