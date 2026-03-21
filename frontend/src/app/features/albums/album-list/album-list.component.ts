@@ -33,11 +33,14 @@ export class AlbumListComponent implements OnInit {
   readonly deleteError = signal<string | null>(null);
 
   async ngOnInit() {
-    // Firebase auth starts as undefined (loading). Wait for it to resolve so
-    // getIdToken() returns the real token and the server includes private albums.
-    await firstValueFrom(
-      this.authUser$.pipe(filter(u => u !== undefined))
-    );
+    // Firebase auth starts as undefined (loading). If still loading, wait for
+    // it to resolve so getIdToken() returns the real token. Skip the wait when
+    // auth has already resolved (null = anonymous, User = signed in).
+    if (this.auth.user() === undefined) {
+      await firstValueFrom(
+        this.authUser$.pipe(filter(u => u !== undefined))
+      );
+    }
     await this.loadAlbums();
   }
 

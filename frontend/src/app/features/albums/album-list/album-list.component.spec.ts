@@ -31,7 +31,9 @@ function createComponent(options: { albums?: Album[] } = {}) {
   albumSpy.listAlbums.and.resolveTo({ mine: albums, shared: [], public: [] });
   albumSpy.deleteAlbum.and.resolveTo();
 
-  const authStub = { isAuthenticated: signal(true) } as unknown as AuthService;
+  // user: signal(null) means "auth resolved, not signed in" (non-undefined passes
+  // the filter in ngOnInit so firstValueFrom resolves immediately).
+  const authStub = { isAuthenticated: signal(true), user: signal(null) } as unknown as AuthService;
 
   TestBed.configureTestingModule({
     imports: [AlbumListComponent],
