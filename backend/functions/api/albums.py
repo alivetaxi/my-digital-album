@@ -8,6 +8,8 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 from google.cloud import firestore
+from google.cloud.firestore_v1.field_path import FieldPath
+from google.cloud.firestore_v1.transforms import ArrayUnion, ArrayRemove, DELETE_FIELD
 from pydantic import BaseModel
 
 from shared.access import can_read_album, get_member_permission
@@ -299,8 +301,8 @@ def add_member(album_id: str, body: AddMemberBody, uid: str = Depends(require_au
             "addedAt": now,
         }
         ref.update({
-            firestore.FieldPath("members", email): entry,
-            "memberIds": firestore.ArrayUnion([user_uid]),
+            FieldPath("members", email): entry,
+            "memberIds": ArrayUnion([user_uid]),
             "updatedAt": now,
         })
         return _serialize_member(email, entry, user_info)
@@ -316,7 +318,7 @@ def add_member(album_id: str, body: AddMemberBody, uid: str = Depends(require_au
             "addedAt": now,
         }
         ref.update({
-            firestore.FieldPath("members", email): entry,
+            FieldPath("members", email): entry,
             "updatedAt": now,
         })
         return _serialize_member(email, entry)
@@ -347,7 +349,7 @@ def update_member(
 
     now = datetime.now(timezone.utc)
     ref.update({
-        firestore.FieldPath("members", email, "permission"): body.permission,
+        FieldPath("members", email, "permission"): body.permission,
         "updatedAt": now,
     })
 
@@ -384,11 +386,11 @@ def delete_member(
 
     entry = members[email]
     updates: dict = {
-        firestore.FieldPath("members", email): firestore.DELETE_FIELD,
+        FieldPath("members", email): DELETE_FIELD,
         "updatedAt": datetime.now(timezone.utc),
     }
     if entry.get("userId"):
-        updates["memberIds"] = firestore.ArrayRemove([entry["userId"]])
+        updates["memberIds"] = ArrayRemove([entry["userId"]])
 
     ref.update(updates)
     return {"deleted": True}
@@ -434,10 +436,10 @@ def accept_invite(
 
     now = datetime.now(timezone.utc)
     ref.update({
-        firestore.FieldPath("members", found_email, "userId"): uid,
-        firestore.FieldPath("members", found_email, "inviteToken"): None,
-        firestore.FieldPath("members", found_email, "inviteExpiresAt"): None,
-        "memberIds": firestore.ArrayUnion([uid]),
+        FieldPath("members", found_email, "userId"): uid,
+        FieldPath("members", found_email, "inviteToken"): None,
+        FieldPath("members", found_email, "inviteExpiresAt"): None,
+        "memberIds": ArrayUnion([uid]),
         "updatedAt": now,
     })
 

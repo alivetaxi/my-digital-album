@@ -1,8 +1,6 @@
 """Tests for media endpoints."""
 from __future__ import annotations
 
-import pytest
-
 from conftest import (
     ALBUM_ID,
     MEDIA_ID,
@@ -13,6 +11,9 @@ from conftest import (
     make_doc,
     make_media,
 )
+from test_albums import make_member_entry
+
+MEMBER_EMAIL = "member@example.com"
 
 UPLOAD_ITEMS = [
     {
@@ -189,8 +190,6 @@ class TestRequestUploadUrl:
         media_ref.set.assert_not_called()
 
     def test_write_member_can_request_upload_url(self, other_client, mocker):
-        from test_albums import make_member_entry
-        MEMBER_EMAIL = "member@example.com"
         entry = make_member_entry(user_id=OTHER_UID, permission="write")
         album = make_album(
             owner=TEST_UID,
@@ -208,8 +207,6 @@ class TestRequestUploadUrl:
         assert resp.status_code == 200
 
     def test_read_member_cannot_request_upload_url(self, other_client, mocker):
-        from test_albums import make_member_entry
-        MEMBER_EMAIL = "member@example.com"
         entry = make_member_entry(user_id=OTHER_UID, permission="read")
         album = make_album(
             owner=TEST_UID,
@@ -226,7 +223,7 @@ class TestRequestUploadUrl:
         assert resp.status_code == 403
         assert resp.json()["error"]["code"] == "PERMISSION_DENIED"
 
-    def test_unauthenticated_returns_401(self, anon_client, mocker):
+    def test_unauthenticated_returns_401(self, anon_client):
         resp = anon_client.post(
             f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS
         )
@@ -322,8 +319,8 @@ class TestUpdateMedia:
         )
         assert resp.status_code == 200
 
-    def test_third_party_gets_403(self, other_client, mocker):
-        album = make_album(owner=TEST_UID, visibility="public")
+    def test_non_member_of_private_album_gets_403(self, other_client, mocker):
+        album = make_album(owner=TEST_UID, visibility="private")
         media = make_media(uploader=TEST_UID)
         db = build_db(album_doc=album, media_doc=media)
         mocker.patch("media.get_db", return_value=db)
@@ -345,7 +342,7 @@ class TestUpdateMedia:
         )
         assert resp.status_code == 404
 
-    def test_unauthenticated_returns_401(self, anon_client, mocker):
+    def test_unauthenticated_returns_401(self, anon_client):
         resp = anon_client.patch(
             f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}",
             json={"description": "x"},
@@ -401,7 +398,6 @@ class TestDeleteMedia:
 
         update_call = db.collection("albums-dev").document.return_value.update
         call_kwargs = update_call.call_args[0][0]
-        from google.cloud.firestore_v1 import transforms
         assert "mediaCount" in call_kwargs
 
     def test_third_party_gets_403(self, other_client, mocker):
@@ -421,6 +417,6 @@ class TestDeleteMedia:
         resp = client.delete(f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}")
         assert resp.status_code == 404
 
-    def test_unauthenticated_returns_401(self, anon_client, mocker):
+    def test_unauthenticated_returns_401(self, anon_client):
         resp = anon_client.delete(f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}")
         assert resp.status_code == 401
