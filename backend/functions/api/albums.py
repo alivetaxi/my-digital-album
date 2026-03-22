@@ -243,7 +243,8 @@ def list_members(album_id: str, uid: str = Depends(require_auth)):
         return error_response("ALBUM_NOT_FOUND")
 
     album = doc.to_dict()
-    if album.get("ownerId") != uid:
+    # Any member (including non-owners) may view the member list.
+    if album.get("ownerId") != uid and not get_member_permission(album, uid):
         return error_response("PERMISSION_DENIED")
 
     members = album.get("members", {})

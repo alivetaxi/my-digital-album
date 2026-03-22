@@ -340,7 +340,22 @@ class TestListMembers:
         assert members[0]["permission"] == "read"
         assert members[0]["displayName"] == "Other"
 
-    def test_non_owner_gets_403(self, other_client, mocker):
+    def test_member_non_owner_can_list(self, other_client, mocker):
+        entry = make_member_entry(user_id=OTHER_UID, permission="read")
+        album = make_album(
+            owner=TEST_UID,
+            members={MEMBER_EMAIL: entry},
+            member_ids=[OTHER_UID],
+        )
+        other_user = make_user(uid=OTHER_UID, display_name="Other", email=MEMBER_EMAIL)
+        db = build_db(album_doc=album, user_docs_by_uid={OTHER_UID: other_user})
+        mocker.patch("albums.get_db", return_value=db)
+
+        resp = other_client.get(f"/api/albums/{ALBUM_ID}/members")
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+
+    def test_non_member_gets_403(self, other_client, mocker):
         album = make_album(owner=TEST_UID)
         db = build_db(album_doc=album)
         mocker.patch("albums.get_db", return_value=db)
