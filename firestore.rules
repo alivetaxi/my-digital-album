@@ -10,16 +10,15 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == resource.data.ownerId;
     }
 
-    function isGroupMember(groupsCol, groupId) {
-      return isAuth() &&
-        request.auth.uid in
-          get(/databases/$(database)/documents/$(groupsCol)/$(groupId)).data.memberIds;
-    }
-
-    function canReadAlbum(groupsCol, album) {
+    // An album is readable when it is public, the requester owns it, or the
+    // requester's uid is in the memberIds array (member-based access, replaces
+    // the old group-based check).
+    function canReadAlbum(album) {
       return album.data.visibility == 'public'
         || (isAuth() && album.data.ownerId == request.auth.uid)
-        || (album.data.visibility == 'group' && isGroupMember(groupsCol, album.data.groupId));
+        || (isAuth()
+            && album.data.memberIds != null
+            && request.auth.uid in album.data.memberIds);
     }
 
     // ── Dev environment ──────────────────────────────────────────────────────
@@ -28,20 +27,14 @@ service cloud.firestore {
       allow read, write: if isAuth() && request.auth.uid == uid;
     }
 
-    match /groups-dev/{groupId} {
-      allow read: if isAuth() && isGroupMember('groups-dev', groupId);
-      allow create: if isAuth();
-      allow update, delete: if isOwner(resource);
-    }
-
     match /albums-dev/{albumId} {
-      allow read: if canReadAlbum('groups-dev', resource);
+      allow read: if canReadAlbum(resource);
       allow create: if isAuth();
       allow update: if isOwner(resource);
       allow delete: if isOwner(resource) && resource.data.mediaCount == 0;
 
       match /media/{mediaId} {
-        allow read: if canReadAlbum('groups-dev',
+        allow read: if canReadAlbum(
           get(/databases/$(database)/documents/albums-dev/$(albumId)));
         allow create: if isAuth();
         allow update: if isAuth() && (
@@ -63,20 +56,14 @@ service cloud.firestore {
       allow read, write: if isAuth() && request.auth.uid == uid;
     }
 
-    match /groups-prod/{groupId} {
-      allow read: if isAuth() && isGroupMember('groups-prod', groupId);
-      allow create: if isAuth();
-      allow update, delete: if isOwner(resource);
-    }
-
     match /albums-prod/{albumId} {
-      allow read: if canReadAlbum('groups-prod', resource);
+      allow read: if canReadAlbum(resource);
       allow create: if isAuth();
       allow update: if isOwner(resource);
       allow delete: if isOwner(resource) && resource.data.mediaCount == 0;
 
       match /media/{mediaId} {
-        allow read: if canReadAlbum('groups-prod',
+        allow read: if canReadAlbum(
           get(/databases/$(database)/documents/albums-prod/$(albumId)));
         allow create: if isAuth();
         allow update: if isAuth() && (
