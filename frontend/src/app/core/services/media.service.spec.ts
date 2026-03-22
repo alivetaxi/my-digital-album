@@ -423,6 +423,68 @@ describe('MediaService', () => {
       expect(ranges[1]).toMatch(/^bytes 1-/);
     });
 
+    it('uses redirect:manual on chunked PUT requests', async () => {
+      const file = new File([], 'video.mp4', { type: 'video/mp4' });
+      Object.defineProperty(file, 'size', { value: 1, configurable: true });
+      fetchSpy.and.resolveTo(new Response(null, { status: 200 }));
+
+      const promise = service.uploadFiles('a1', [file]);
+      await flushUpload();
+      http.expectOne('/api/albums/a1/media/upload-url').flush({
+        [EMPTY_SHA256]: { url: 'https://gcs/session', multipart: true },
+      });
+      await promise;
+
+      expect((fetchSpy.calls.first().args[1] as RequestInit).redirect).toBe('manual');
+    });
+
+    it('advances offset by chunk size when GCS returns opaqueredirect (Safari 308 behavior)', async () => {
+      const CHUNK = 8 * 1024 * 1024;
+      const FILE_SIZE = CHUNK * 2 + 1; // 3 chunks
+      const file = new File([], 'video.mp4', { type: 'video/mp4' });
+      Object.defineProperty(file, 'size', { value: FILE_SIZE, configurable: true });
+
+      // Safari returns type='opaqueredirect' / status=0 for GCS 308 Resume Incomplete.
+      // Response.type is a read-only getter, so use a plain object mock.
+      const opaqueResponse = { type: 'opaqueredirect', ok: false, status: 0, headers: new Headers() };
+
+      let callCount = 0;
+      fetchSpy.and.callFake(() => {
+        callCount++;
+        return Promise.resolve(callCount < 3 ? opaqueResponse : new Response(null, { status: 200 }));
+      });
+
+      const promise = service.uploadFiles('a1', [file]);
+      await flushUpload();
+      http.expectOne('/api/albums/a1/media/upload-url').flush({
+        [EMPTY_SHA256]: { url: 'https://gcs/session', multipart: true },
+      });
+      await promise;
+
+      expect(fetchSpy.calls.count()).toBe(3);
+      const ranges = fetchSpy.calls.all().map(
+        c => (c.args[1].headers as Record<string, string>)['Content-Range']
+      );
+      expect(ranges[0]).toBe(`bytes 0-${CHUNK - 1}/${FILE_SIZE}`);
+      expect(ranges[1]).toBe(`bytes ${CHUNK}-${CHUNK * 2 - 1}/${FILE_SIZE}`);
+    });
+
+    it('throws on opaqueredirect for the last chunk', async () => {
+      const file = new File([], 'video.mp4', { type: 'video/mp4' });
+      Object.defineProperty(file, 'size', { value: 1, configurable: true });
+
+      const opaqueResponse = { type: 'opaqueredirect', ok: false, status: 0, headers: new Headers() };
+      fetchSpy.and.resolveTo(opaqueResponse as unknown as Response);
+
+      const promise = service.uploadFiles('a1', [file]);
+      await flushUpload();
+      http.expectOne('/api/albums/a1/media/upload-url').flush({
+        [EMPTY_SHA256]: { url: 'https://gcs/session', multipart: true },
+      });
+
+      await expectAsync(promise).toBeRejectedWithError(/last chunk not finalized/);
+    });
+
     it('skips upload and returns empty array when server returns no URL', async () => {
       const file = new File([], 'photo.jpg', { type: 'image/jpeg' });
 

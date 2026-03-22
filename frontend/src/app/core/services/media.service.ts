@@ -35,7 +35,6 @@ const ACCEPTED_MIME_TYPES = new Set([
   'video/quicktime',
 ]);
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
-const MULTIPART_THRESHOLD = 30 * 1024 * 1024; // 30 MB — above this, use resumable upload
 const CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB per chunk (must be multiple of 256 KB)
 const MAX_BATCH = 50;
 
@@ -243,8 +242,11 @@ export class MediaService {
     while (offset < file.size) {
       const end = Math.min(offset + CHUNK_SIZE, file.size);
       const isLast = end === file.size;
+      // redirect:'manual' prevents Safari from treating GCS's 308 Resume
+      // Incomplete as a redirect and auto-following it (iOS Safari bug).
       const response = await fetch(sessionUri, {
         method: 'PUT',
+        redirect: 'manual',
         headers: {
           'Content-Range': `bytes ${offset}-${end - 1}/${file.size}`,
           'Content-Type': file.type,
@@ -252,9 +254,19 @@ export class MediaService {
         body: file.slice(offset, end),
       });
       if (response.ok) {
-        // GCS returned 200/201 — object is finalized. Stop immediately even if
-        // we thought this was an intermediate chunk (e.g. GCS completed early).
+        // GCS returned 200/201 — object is finalized.
         break;
+      }
+      // Safari with redirect:'manual' returns type='opaqueredirect' and status=0
+      // for 308 responses (no Location header, so it's GCS Resume Incomplete).
+      // We can't read the Range header from an opaque redirect, so advance by
+      // the full chunk size (safe: GCS will discard any overlap on next PUT).
+      if (response.type === 'opaqueredirect') {
+        if (isLast) {
+          throw new Error(`Resumable upload: last chunk not finalized (opaque redirect)`);
+        }
+        offset = end;
+        continue;
       }
       if (response.status !== 308 || isLast) {
         // 308 on the last chunk means GCS hasn't received all bytes (size
