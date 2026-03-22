@@ -185,6 +185,13 @@ def _extract_video_tags(video_path: str) -> dict:
     if m:
         tags["creation_time"] = m.group(1)
 
+    # com.apple.quicktime.creationdate includes the local timezone offset and is
+    # more reliable than creation_time (which is stored as UTC and may be reset
+    # by transcoding tools).
+    m = re.search(r"com\.apple\.quicktime\.creationdate\s*:\s*(\S+)", stderr)
+    if m:
+        tags["quicktime_creationdate"] = m.group(1)
+
     m = re.search(
         r"(?:location|com\.apple\.quicktime\.location\.ISO6709)\s*:\s*(\S+)", stderr
     )
@@ -198,17 +205,27 @@ def _parse_video_tags(tags: dict) -> dict:
     """Convert raw tag strings (creation_time, location) to metadata dict."""
     metadata: dict = {}
 
-    creation_time = tags.get("creation_time")
-    if creation_time:
+    # Try sources in priority order: QuickTime creationdate (iPhone/iPad, has
+    # timezone) first, then the standard creation_time. Skip null/epoch sentinels
+    # (year < 2000) which indicate the timestamp was never set or was reset by a
+    # transcoding tool.
+    for key in ("quicktime_creationdate", "creation_time"):
+        raw = tags.get(key)
+        if not raw:
+            continue
         try:
-            clean = creation_time.replace("Z", "+00:00")
+            clean = raw.replace("Z", "+00:00")
             dt = datetime.fromisoformat(clean)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
+            if dt.year < 2000:
+                logger.info("Video %s is a null/epoch sentinel (%s), skipping", key, raw)
+                continue
             metadata["takenAt"] = dt
-            logger.info("Video creation_time: %s", creation_time)
+            logger.info("Video takenAt from %s: %s", key, raw)
+            break
         except Exception as exc:
-            logger.warning("Video creation_time parse failed: %s", exc)
+            logger.warning("Video %s parse failed: %s", key, exc)
 
     location = tags.get("location")
     if location:

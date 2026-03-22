@@ -309,6 +309,57 @@ class TestProcessVideo:
         _, _, _, _, metadata = thumb._process_video(self._FAKE_PATH)
         assert metadata["takenAt"] == datetime(2023, 6, 15, 10, 30, 0, tzinfo=timezone.utc)
 
+    def test_quicktime_creationdate_takes_priority_over_creation_time(self, mocker):
+        frame = self._make_raw_frame(640, 480)
+        meta = {"size": (640, 480), "duration": 5.0}
+        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        # Both tags present; creationdate includes timezone, creation_time is UTC
+        stderr = (
+            "    creation_time   : 2023-06-14T16:30:00.000000Z\n"
+            "    com.apple.quicktime.creationdate: 2023-06-15T00:30:00+0800\n"
+        )
+        mocker.patch(
+            "thumbnail.main.subprocess.run",
+            return_value=MagicMock(returncode=1, stderr=stderr, stdout=""),
+        )
+
+        _, _, _, _, metadata = thumb._process_video(self._FAKE_PATH)
+        # Should use quicktime_creationdate (local midnight +08:00 = UTC 16:30)
+        from datetime import timezone as tz
+        import datetime as dt_mod
+        expected_tz = dt_mod.timezone(dt_mod.timedelta(hours=8))
+        assert metadata["takenAt"].year == 2023
+        assert metadata["takenAt"].month == 6
+        assert metadata["takenAt"].day == 15
+        assert metadata["takenAt"].hour == 0
+
+    def test_skips_epoch_sentinel_creation_time(self, mocker):
+        frame = self._make_raw_frame(640, 480)
+        meta = {"size": (640, 480), "duration": 5.0}
+        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        # Null sentinel: year < 2000 means timestamp was never set
+        stderr = "    creation_time   : 1970-01-01T00:00:00.000000Z\n"
+        mocker.patch(
+            "thumbnail.main.subprocess.run",
+            return_value=MagicMock(returncode=1, stderr=stderr, stdout=""),
+        )
+
+        _, _, _, _, metadata = thumb._process_video(self._FAKE_PATH)
+        assert "takenAt" not in metadata
+
+    def test_skips_qt_null_sentinel_creation_time(self, mocker):
+        frame = self._make_raw_frame(640, 480)
+        meta = {"size": (640, 480), "duration": 5.0}
+        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        stderr = "    creation_time   : 0001-01-01T00:00:00.000000Z\n"
+        mocker.patch(
+            "thumbnail.main.subprocess.run",
+            return_value=MagicMock(returncode=1, stderr=stderr, stdout=""),
+        )
+
+        _, _, _, _, metadata = thumb._process_video(self._FAKE_PATH)
+        assert "takenAt" not in metadata
+
     def test_extracts_gps_location_as_taken_place(self, mocker):
         frame = self._make_raw_frame(640, 480)
         meta = {"size": (640, 480), "duration": 5.0}
