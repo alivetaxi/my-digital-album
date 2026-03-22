@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from google.cloud import firestore
 from pydantic import BaseModel
 
@@ -12,7 +12,13 @@ from shared.access import can_read_album, can_write_album
 from shared.auth import get_uid, require_auth
 from shared.db import get_col, get_db
 from shared.errors import error_response
-from shared.storage import generate_read_url, generate_resumable_upload_url, generate_upload_url, get_storage_client
+from shared.storage import (
+    generate_read_url,
+    generate_resumable_upload_url,
+    generate_upload_url,
+    get_storage_client,
+    resolve_upload_origin,
+)
 
 router = APIRouter(prefix="/albums", tags=["media"])
 
@@ -91,6 +97,7 @@ def list_media(
 def request_upload_url(
     album_id: str,
     items: list[UploadItem],
+    request: Request,
     uid: str = Depends(require_auth),
 ):
     db = get_db()
@@ -111,6 +118,7 @@ def request_upload_url(
     bucket = os.environ.get("MEDIA_BUCKET", "")
     now = datetime.now(timezone.utc)
     result: dict[str, str] = {}
+    upload_origin = resolve_upload_origin(request.headers.get("origin"))
 
     for item in items[:MAX_BATCH]:
         if item.size > MAX_FILE_SIZE:
@@ -152,7 +160,13 @@ def request_upload_url(
             )
 
         if item.size > MULTIPART_THRESHOLD:
-            url = generate_resumable_upload_url(bucket, storage_path, item.mimeType, item.size)
+            url = generate_resumable_upload_url(
+                bucket,
+                storage_path,
+                item.mimeType,
+                item.size,
+                origin=upload_origin,
+            )
             result[media_id] = {"url": url, "multipart": True}
         else:
             url = generate_upload_url(bucket, storage_path, item.mimeType)

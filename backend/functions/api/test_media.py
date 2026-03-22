@@ -117,6 +117,68 @@ class TestRequestUploadUrl:
         assert data["largehash"]["url"] == "https://resumable-session"
         assert data["largehash"]["multipart"] is True
 
+    def test_large_file_passes_allowed_origin_to_resumable_upload(self, client, mocker, monkeypatch):
+        album = make_album(owner=TEST_UID, visibility="private")
+        db = build_db(album_doc=album)
+        mocker.patch("media.get_db", return_value=db)
+        mock_resumable = mocker.patch(
+            "media.generate_resumable_upload_url",
+            return_value="https://resumable-session",
+        )
+        monkeypatch.setenv("UPLOAD_ALLOWED_ORIGINS", "https://app.example.com")
+
+        large_item = [{
+            "sha256": "largehash",
+            "mimeType": "video/mp4",
+            "filename": "video.mp4",
+            "size": 50 * 1024 * 1024,
+        }]
+        resp = client.post(
+            f"/api/albums/{ALBUM_ID}/media/upload-url",
+            json=large_item,
+            headers={"Origin": "https://app.example.com"},
+        )
+
+        assert resp.status_code == 200
+        mock_resumable.assert_called_once_with(
+            "",
+            f"media/{TEST_UID}/{ALBUM_ID}/largehash/original.mp4",
+            "video/mp4",
+            50 * 1024 * 1024,
+            origin="https://app.example.com",
+        )
+
+    def test_large_file_drops_disallowed_origin_for_resumable_upload(self, client, mocker, monkeypatch):
+        album = make_album(owner=TEST_UID, visibility="private")
+        db = build_db(album_doc=album)
+        mocker.patch("media.get_db", return_value=db)
+        mock_resumable = mocker.patch(
+            "media.generate_resumable_upload_url",
+            return_value="https://resumable-session",
+        )
+        monkeypatch.setenv("UPLOAD_ALLOWED_ORIGINS", "https://app.example.com")
+
+        large_item = [{
+            "sha256": "largehash",
+            "mimeType": "video/mp4",
+            "filename": "video.mp4",
+            "size": 50 * 1024 * 1024,
+        }]
+        resp = client.post(
+            f"/api/albums/{ALBUM_ID}/media/upload-url",
+            json=large_item,
+            headers={"Origin": "https://other.example.com"},
+        )
+
+        assert resp.status_code == 200
+        mock_resumable.assert_called_once_with(
+            "",
+            f"media/{TEST_UID}/{ALBUM_ID}/largehash/original.mp4",
+            "video/mp4",
+            50 * 1024 * 1024,
+            origin=None,
+        )
+
     def test_creates_firestore_doc_with_pending_status(self, client, mocker):
         album = make_album(owner=TEST_UID, visibility="private")
         db = build_db(album_doc=album)
