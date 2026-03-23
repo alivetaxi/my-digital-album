@@ -33,7 +33,10 @@ export class AlbumDetailComponent implements OnInit, OnDestroy {
     return p === 'owner' || p === 'write';
   });
   readonly albumFormReadonly = computed(() => this.album()?.myPermission === 'write');
-  readonly showManageAccess = computed(() => this.album()?.myPermission !== undefined);
+  readonly showManageAccess = computed(() => {
+    const a = this.album();
+    return a?.myPermission !== undefined && a.visibility !== 'public';
+  });
 
   readonly albumId = signal('');
   readonly album = signal<Album | null>(null);

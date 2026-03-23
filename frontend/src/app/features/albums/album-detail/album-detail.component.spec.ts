@@ -201,14 +201,20 @@ describe('AlbumDetailComponent', () => {
       expect(component.albumFormReadonly()).toBeTrue();
     }));
 
-    it('showManageAccess is true when myPermission is set', fakeAsync(async () => {
-      const { component } = createComponent({ album: makeAlbum({ myPermission: 'read' }) });
+    it('showManageAccess is true when myPermission is set and album is not public', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'read', visibility: 'private' }) });
       await component.ngOnInit(); tick(100);
       expect(component.showManageAccess()).toBeTrue();
     }));
 
     it('showManageAccess is false when myPermission is undefined', fakeAsync(async () => {
       const { component } = createComponent({ album: makeAlbum() });
+      await component.ngOnInit(); tick(100);
+      expect(component.showManageAccess()).toBeFalse();
+    }));
+
+    it('showManageAccess is false when album is public', fakeAsync(async () => {
+      const { component } = createComponent({ album: makeAlbum({ myPermission: 'owner', visibility: 'public' }) });
       await component.ngOnInit(); tick(100);
       expect(component.showManageAccess()).toBeFalse();
     }));
