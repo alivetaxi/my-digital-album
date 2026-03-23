@@ -1,10 +1,9 @@
 """Album access-control helpers shared by api and thumbnail."""
+
 from __future__ import annotations
 
 
-def can_read_album(
-    album: dict, uid: str | None, db
-) -> tuple[bool, str | None]:
+def can_read_album(album: dict, uid: str | None, db) -> tuple[bool, str | None]:
     """Return (allowed, error_code).
 
     error_code is None when access is granted, otherwise the API error code

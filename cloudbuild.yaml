@@ -29,6 +29,42 @@ steps:
         python -m pytest --tb=short
     waitFor: ["-"]
 
+  # ── Backend: check style with ruff ─────────────────────────────────────────
+  - id: check-backend-style
+    name: python:3.12-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install --quiet ruff
+        ruff check backend/functions/
+        ruff format --check backend/functions/
+    waitFor: ["-"]
+
+  # ── Backend: vulnerability scan with pip-audit ─────────────────────────────
+  - id: check-backend-vuln
+    name: python:3.12-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install --quiet pip-audit
+        pip-audit \
+          -r backend/functions/api/requirements.txt \
+          -r backend/functions/thumbnail/requirements.txt
+    waitFor: ["-"]
+
+  # ── Frontend: install dependencies (shared by all frontend steps) ──────────
+  - id: setup-frontend
+    name: node:22
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        cd frontend
+        npm ci
+    waitFor: ["-"]
+
   # ── Frontend: run tests ────────────────────────────────────────────────────
   - id: test-frontend
     name: node:22
@@ -38,10 +74,32 @@ steps:
       - |
         apt-get update -qq && apt-get install -y -qq chromium
         cd frontend
-        npm ci
         CHROME_BIN=/usr/bin/chromium \
           npx ng test --watch=false --browsers=ChromeHeadlessNoSandbox --no-progress
-    waitFor: ["-"]
+    waitFor: [setup-frontend]
+
+  # ── Frontend: check style with ESLint ─────────────────────────────────────
+  - id: check-frontend-style
+    name: node:22
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        cd frontend
+        npx ng lint
+    waitFor: [setup-frontend]
+
+  # ── Frontend: vulnerability scan with npm audit ────────────────────────────
+  # --omit=dev skips Angular build tooling (undici) which has no non-breaking fix
+  - id: check-frontend-vuln
+    name: node:22
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        cd frontend
+        npm audit --audit-level=high --omit=dev
+    waitFor: [setup-frontend]
 
   # ── Frontend: inject Firebase config ──────────────────────────────────────
   - id: inject-firebase-config
@@ -68,13 +126,12 @@ steps:
       - -c
       - |
         cd frontend
-        npm ci
         if [ "$_ENV" = "prod" ]; then
           npx ng build --configuration=production
         else
           npx ng build --configuration=development
         fi
-    waitFor: [inject-firebase-config, test-frontend]
+    waitFor: [inject-firebase-config, test-frontend, check-frontend-style, check-frontend-vuln]
 
   # ── Firestore: deploy security rules ──────────────────────────────────────
   - id: deploy-firestore-rules
@@ -98,7 +155,7 @@ steps:
         firebase deploy --only hosting:$_ENV --project="$PROJECT_ID"
     waitFor: [build-frontend]
 
-  # ── Backend: build images (parallel, only if tests pass) ──────────────────
+  # ── Backend: build images (only if tests + checks pass) ───────────────────
   - id: build-api
     name: gcr.io/cloud-builders/docker
     args:
@@ -109,7 +166,7 @@ steps:
       - -f
       - backend/functions/api/Dockerfile
       - backend/functions
-    waitFor: [test-backend]
+    waitFor: [test-backend, check-backend-style, check-backend-vuln]
 
   - id: build-thumbnail
     name: gcr.io/cloud-builders/docker
@@ -121,7 +178,7 @@ steps:
       - -f
       - backend/functions/thumbnail/Dockerfile
       - backend/functions
-    waitFor: [test-backend]
+    waitFor: [test-backend, check-backend-style, check-backend-vuln]
 
   # ── Backend: push images ───────────────────────────────────────────────────
   - id: push-api

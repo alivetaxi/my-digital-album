@@ -1,4 +1,5 @@
 """Tests for albums endpoints."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -39,6 +40,7 @@ def make_member_entry(
 # GET /api/albums
 # ---------------------------------------------------------------------------
 
+
 class TestListAlbums:
     def test_anonymous_returns_only_public(self, anon_client, mocker):
         pub = make_album(album_id="pub-1", owner=OTHER_UID, visibility="public")
@@ -58,7 +60,9 @@ class TestListAlbums:
         db = build_db(public_album_list=[pub])
         mocker.patch("albums.get_db", return_value=db)
 
-        resp = anon_client.get("/api/albums", headers={"Authorization": "Bearer bad-token"})
+        resp = anon_client.get(
+            "/api/albums", headers={"Authorization": "Bearer bad-token"}
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["public"]) == 1
@@ -111,6 +115,7 @@ class TestListAlbums:
 # POST /api/albums
 # ---------------------------------------------------------------------------
 
+
 class TestCreateAlbum:
     def test_creates_album_and_returns_201(self, client, mocker):
         db = build_db()
@@ -138,7 +143,9 @@ class TestCreateAlbum:
         db = build_db()
         mocker.patch("albums.get_db", return_value=db)
 
-        resp = client.post("/api/albums", json={"title": "Public Album", "visibility": "public"})
+        resp = client.post(
+            "/api/albums", json={"title": "Public Album", "visibility": "public"}
+        )
         assert resp.status_code == 201
         assert resp.json()["visibility"] == "public"
 
@@ -146,6 +153,7 @@ class TestCreateAlbum:
 # ---------------------------------------------------------------------------
 # GET /api/albums/{album_id}
 # ---------------------------------------------------------------------------
+
 
 class TestGetAlbum:
     def test_public_album_accessible_anonymously(self, anon_client, mocker):
@@ -217,6 +225,7 @@ class TestGetAlbum:
 # PATCH /api/albums/{album_id}
 # ---------------------------------------------------------------------------
 
+
 class TestUpdateAlbum:
     def test_owner_can_update_title(self, client, mocker):
         album = make_album(owner=TEST_UID, visibility="private")
@@ -275,6 +284,7 @@ class TestUpdateAlbum:
 # DELETE /api/albums/{album_id}
 # ---------------------------------------------------------------------------
 
+
 class TestDeleteAlbum:
     def test_owner_can_delete_empty_album(self, client, mocker):
         album = make_album(owner=TEST_UID, media_count=0)
@@ -319,6 +329,7 @@ class TestDeleteAlbum:
 # ---------------------------------------------------------------------------
 # GET /api/albums/{album_id}/members
 # ---------------------------------------------------------------------------
+
 
 class TestListMembers:
     def test_owner_can_list_members(self, client, mocker):
@@ -371,6 +382,7 @@ class TestListMembers:
 # ---------------------------------------------------------------------------
 # POST /api/albums/{album_id}/members
 # ---------------------------------------------------------------------------
+
 
 class TestAddMember:
     def test_owner_adds_existing_user_directly(self, client, mocker):
@@ -434,6 +446,7 @@ class TestAddMember:
 # PATCH /api/albums/{album_id}/members/{email}
 # ---------------------------------------------------------------------------
 
+
 class TestUpdateMember:
     def test_owner_can_change_permission(self, client, mocker):
         entry = make_member_entry(user_id=OTHER_UID, permission="read")
@@ -477,6 +490,7 @@ class TestUpdateMember:
 # DELETE /api/albums/{album_id}/members/{email}
 # ---------------------------------------------------------------------------
 
+
 class TestDeleteMember:
     def test_owner_can_remove_member(self, client, mocker):
         entry = make_member_entry(user_id=OTHER_UID, permission="read")
@@ -514,6 +528,7 @@ class TestDeleteMember:
 # POST /api/albums/{album_id}/accept-invite
 # ---------------------------------------------------------------------------
 
+
 class TestAcceptInvite:
     def test_valid_token_accepted(self, other_client, mocker):
         token = "valid-invite-token"
@@ -533,7 +548,9 @@ class TestAcceptInvite:
 
     def test_expired_token_returns_400(self, other_client, mocker):
         token = "expired-token"
-        entry = make_member_entry(user_id=None, permission="read", invite_token=token, expired=True)
+        entry = make_member_entry(
+            user_id=None, permission="read", invite_token=token, expired=True
+        )
         album = make_album(owner=TEST_UID, members={MEMBER_EMAIL: entry})
         db = build_db(album_doc=album)
         mocker.patch("albums.get_db", return_value=db)
@@ -546,7 +563,9 @@ class TestAcceptInvite:
         assert resp.json()["error"]["code"] == "INVITE_TOKEN_EXPIRED"
 
     def test_invalid_token_returns_400(self, other_client, mocker):
-        entry = make_member_entry(user_id=None, permission="read", invite_token="real-token")
+        entry = make_member_entry(
+            user_id=None, permission="read", invite_token="real-token"
+        )
         album = make_album(owner=TEST_UID, members={MEMBER_EMAIL: entry})
         db = build_db(album_doc=album)
         mocker.patch("albums.get_db", return_value=db)

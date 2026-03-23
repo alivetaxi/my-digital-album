@@ -1,4 +1,5 @@
 """Tests for storage helpers."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -10,7 +11,10 @@ class TestResolveUploadOrigin:
     def test_returns_request_origin_when_allowlist_unset(self, monkeypatch):
         monkeypatch.delenv("UPLOAD_ALLOWED_ORIGINS", raising=False)
 
-        assert storage.resolve_upload_origin("https://app.example.com") == "https://app.example.com"
+        assert (
+            storage.resolve_upload_origin("https://app.example.com")
+            == "https://app.example.com"
+        )
 
     def test_returns_none_when_request_origin_missing(self, monkeypatch):
         monkeypatch.delenv("UPLOAD_ALLOWED_ORIGINS", raising=False)
@@ -23,7 +27,10 @@ class TestResolveUploadOrigin:
             "https://app.example.com, https://album.example.com ",
         )
 
-        assert storage.resolve_upload_origin("https://album.example.com") == "https://album.example.com"
+        assert (
+            storage.resolve_upload_origin("https://album.example.com")
+            == "https://album.example.com"
+        )
 
     def test_returns_none_when_origin_not_in_allowlist(self, monkeypatch):
         monkeypatch.setenv("UPLOAD_ALLOWED_ORIGINS", "https://app.example.com")

@@ -1,13 +1,14 @@
 """Firebase token verification — FastAPI dependency helpers."""
+
 from __future__ import annotations
 
 import logging
 import os
 
 import firebase_admin
-from firebase_admin import auth as firebase_auth
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from firebase_admin import auth as firebase_auth
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,10 @@ def require_auth(uid: str | None = Depends(get_uid)) -> str:
     if uid is None:
         raise HTTPException(
             status_code=401,
-            detail={"code": "UNAUTHENTICATED", "message": "Please sign in to continue.", "status": 401},
+            detail={
+                "code": "UNAUTHENTICATED",
+                "message": "Please sign in to continue.",
+                "status": 401,
+            },
         )
     return uid

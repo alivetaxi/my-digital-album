@@ -1,4 +1,5 @@
 """Shared test fixtures for the API."""
+
 from __future__ import annotations
 
 import os
@@ -11,6 +12,7 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("ENVIRONMENT", "dev")
 
 from main import app
+
 from shared.auth import get_uid, require_auth
 
 TEST_UID = "user-111"
@@ -23,9 +25,11 @@ MEDIA_ID = "mediahash123"
 # Auth dependency overrides
 # ---------------------------------------------------------------------------
 
+
 def _auth_as(uid: str):
     def _override():
         return uid
+
     return _override
 
 
@@ -61,6 +65,7 @@ def anon_client():
 # ---------------------------------------------------------------------------
 # Firestore mock helpers
 # ---------------------------------------------------------------------------
+
 
 def make_doc(doc_id: str, data: dict | None) -> MagicMock:
     """Return a mock Firestore DocumentSnapshot."""
@@ -110,6 +115,7 @@ def make_group(
     expired: bool = False,
 ) -> MagicMock:
     from datetime import timedelta
+
     if member_ids is None:
         member_ids = [owner]
     expires_at = datetime.now(timezone.utc) + timedelta(hours=-1 if expired else 48)
@@ -264,8 +270,6 @@ def build_db(
     albums_col.where.side_effect = _albums_where
 
     # --- users ---
-    user_ref = MagicMock()
-
     def _users_document(uid):
         if user_docs_by_uid and uid in user_docs_by_uid:
             ref = MagicMock()

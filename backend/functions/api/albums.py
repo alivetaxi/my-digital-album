@@ -1,4 +1,5 @@
 """Albums route handlers."""
+
 from __future__ import annotations
 
 import secrets
@@ -8,7 +9,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 from google.cloud import firestore
-from google.cloud.firestore_v1.transforms import ArrayUnion, ArrayRemove
+from google.cloud.firestore_v1.transforms import ArrayRemove, ArrayUnion
 from pydantic import BaseModel
 
 from shared.access import can_read_album, get_member_permission
@@ -24,6 +25,7 @@ INVITE_TTL_HOURS = 24
 # ---------------------------------------------------------------------------
 # Request models
 # ---------------------------------------------------------------------------
+
 
 class CreateAlbumBody(BaseModel):
     title: str
@@ -52,6 +54,7 @@ class AcceptInviteBody(BaseModel):
 # ---------------------------------------------------------------------------
 # Serialisation helpers
 # ---------------------------------------------------------------------------
+
 
 def _serialize(data: dict, uid: str | None = None) -> dict:
     """Convert Firestore Timestamps to ISO strings and compute derived fields.
@@ -93,6 +96,7 @@ def _serialize_member(email: str, entry: dict, user_info: dict | None = None) ->
 # ---------------------------------------------------------------------------
 # Album CRUD
 # ---------------------------------------------------------------------------
+
 
 @router.get("")
 def list_albums(uid: str | None = Depends(get_uid)):
@@ -197,7 +201,9 @@ def update_album(
     if body.coverMediaId is not None:
         updates["coverMediaId"] = body.coverMediaId
         media_doc = ref.collection("media").document(body.coverMediaId).get()
-        thumb_path = media_doc.to_dict().get("thumbnailPath") if media_doc.exists else None
+        thumb_path = (
+            media_doc.to_dict().get("thumbnailPath") if media_doc.exists else None
+        )
         updates["coverThumbnailPath"] = thumb_path
     if body.visibility is not None:
         updates["visibility"] = body.visibility
@@ -233,6 +239,7 @@ def delete_album(album_id: str, uid: str = Depends(require_auth)):
 # ---------------------------------------------------------------------------
 # Member management
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{album_id}/members")
 def list_members(album_id: str, uid: str = Depends(require_auth)):
@@ -282,10 +289,7 @@ def add_member(album_id: str, body: AddMemberBody, uid: str = Depends(require_au
 
     # Look up user by email in the users collection
     user_docs = list(
-        db.collection(get_col("users"))
-        .where("email", "==", email)
-        .limit(1)
-        .stream()
+        db.collection(get_col("users")).where("email", "==", email).limit(1).stream()
     )
 
     if user_docs:
@@ -301,7 +305,13 @@ def add_member(album_id: str, body: AddMemberBody, uid: str = Depends(require_au
             "addedAt": now,
         }
         new_members = {**members, email: entry}
-        ref.update({"members": new_members, "memberIds": ArrayUnion([user_uid]), "updatedAt": now})
+        ref.update(
+            {
+                "members": new_members,
+                "memberIds": ArrayUnion([user_uid]),
+                "updatedAt": now,
+            }
+        )
         return _serialize_member(email, entry, user_info)
     else:
         # User not registered — generate a one-time invite token
@@ -390,6 +400,7 @@ def delete_member(
 # Invite acceptance
 # ---------------------------------------------------------------------------
 
+
 @router.post("/{album_id}/accept-invite")
 def accept_invite(
     album_id: str,
@@ -427,14 +438,26 @@ def accept_invite(
     now = datetime.now(timezone.utc)
     new_members = {
         **members,
-        found_email: {**entry, "userId": uid, "inviteToken": None, "inviteExpiresAt": None},
+        found_email: {
+            **entry,
+            "userId": uid,
+            "inviteToken": None,
+            "inviteExpiresAt": None,
+        },
     }
-    ref.update({"members": new_members, "memberIds": ArrayUnion([uid]), "updatedAt": now})
+    ref.update(
+        {"members": new_members, "memberIds": ArrayUnion([uid]), "updatedAt": now}
+    )
 
     # Return updated album so the frontend can navigate in
     updated_members = {
         **members,
-        found_email: {**entry, "userId": uid, "inviteToken": None, "inviteExpiresAt": None},
+        found_email: {
+            **entry,
+            "userId": uid,
+            "inviteToken": None,
+            "inviteExpiresAt": None,
+        },
     }
     updated_album = {
         **album,

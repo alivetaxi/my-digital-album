@@ -1,4 +1,5 @@
 """Media route handlers — nested under /albums/{album_id}/media."""
+
 from __future__ import annotations
 
 import os
@@ -129,14 +130,12 @@ def request_upload_url(
         ext = MIME_TO_EXT.get(item.mimeType, "bin")
         storage_path = f"media/{uid}/{album_id}/{media_id}/original.{ext}"
 
-        media_ref = (
-            album_ref
-            .collection("media")
-            .document(media_id)
-        )
+        media_ref = album_ref.collection("media").document(media_id)
 
         existing = media_ref.get()
-        existing_status = existing.to_dict().get("thumbnailStatus") if existing.exists else None
+        existing_status = (
+            existing.to_dict().get("thumbnailStatus") if existing.exists else None
+        )
 
         if not (existing.exists and existing_status == "ready"):
             # New upload or re-upload of a failed/pending item — (re)create the doc.
@@ -233,7 +232,10 @@ def update_media(
         return error_response("ALBUM_NOT_FOUND")
 
     media_ref = (
-        db.collection(get_col("albums")).document(album_id).collection("media").document(media_id)
+        db.collection(get_col("albums"))
+        .document(album_id)
+        .collection("media")
+        .document(media_id)
     )
     media_doc = media_ref.get()
 
@@ -289,7 +291,9 @@ def delete_media(
         try:
             gcs = get_storage_client()
             bucket = gcs.bucket(bucket_name)
-            for path in filter(None, [media.get("storagePath"), media.get("thumbnailPath")]):
+            for path in filter(
+                None, [media.get("storagePath"), media.get("thumbnailPath")]
+            ):
                 bucket.blob(path).delete()
         except Exception:
             pass  # logged by Cloud Run; Firestore delete still proceeds

@@ -1,4 +1,5 @@
 """Thumbnail generation Cloud Function (Storage trigger via Eventarc)."""
+
 from __future__ import annotations
 
 import io
@@ -83,9 +84,13 @@ def _process(
 
         duration: float | None = None
         if content_type in IMAGE_TYPES or content_type.startswith("image/"):
-            thumbnail_bytes, width, height, metadata = _process_image(src_path, content_type)
+            thumbnail_bytes, width, height, metadata = _process_image(
+                src_path, content_type
+            )
         elif content_type in VIDEO_TYPES or content_type.startswith("video/"):
-            thumbnail_bytes, width, height, duration, metadata = _process_video(src_path)
+            thumbnail_bytes, width, height, duration, metadata = _process_video(
+                src_path
+            )
         else:
             raise InvalidFileFormatError(f"Unsupported content type: {content_type}")
     finally:
@@ -118,9 +123,7 @@ def _process(
     _update_media(album_id, media_id, updates)
 
 
-def _process_image(
-    src_path: str, content_type: str
-) -> tuple[bytes, int, int, dict]:
+def _process_image(src_path: str, content_type: str) -> tuple[bytes, int, int, dict]:
     """Resize image to THUMBNAIL_WIDTH and extract EXIF. Returns (jpeg_bytes, width, height, metadata)."""
     try:
         if content_type in ("image/heic", "image/heif"):
@@ -158,6 +161,7 @@ def _get_ffmpeg_exe() -> str:
     """Return path to ffmpeg; prefers imageio-ffmpeg's bundled static binary."""
     try:
         import imageio_ffmpeg
+
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception:
         return "ffmpeg"
@@ -170,7 +174,9 @@ def _extract_video_tags(video_path: str) -> dict:
     """
     result = subprocess.run(
         [_get_ffmpeg_exe(), "-hide_banner", "-i", video_path],
-        capture_output=True, text=True, timeout=15,
+        capture_output=True,
+        text=True,
+        timeout=15,
     )
     stderr = result.stderr
     tags: dict = {}
@@ -213,7 +219,9 @@ def _parse_video_tags(tags: dict) -> dict:
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             if dt.year < 2000:
-                logger.info("Video %s is a null/epoch sentinel (%s), skipping", key, raw)
+                logger.info(
+                    "Video %s is a null/epoch sentinel (%s), skipping", key, raw
+                )
                 continue
             metadata["takenAt"] = dt
             logger.info("Video takenAt from %s: %s", key, raw)
@@ -356,8 +364,10 @@ def _gps_to_decimal(dms, ref) -> float | None:
     if not dms or not ref:
         return None
     try:
+
         def r(rational):
             return rational[0] / rational[1]
+
         degrees = r(dms[0]) + r(dms[1]) / 60 + r(dms[2]) / 3600
         if ref in (b"S", b"W"):
             degrees = -degrees
@@ -369,8 +379,8 @@ def _gps_to_decimal(dms, ref) -> float | None:
 
 def _reverse_geocode(lat: float, lng: float) -> str | None:
     """Call Google Maps Geocoding API; returns a human-readable place name or None."""
-    import urllib.request
     import urllib.parse
+    import urllib.request
 
     api_key = os.environ.get("GEOCODING_API_KEY", "")
     if not api_key:
@@ -413,5 +423,3 @@ def _update_media(album_id: str, media_id: str, fields: dict) -> None:
         .document(media_id)
         .update(fields)
     )
-
-

@@ -1,18 +1,19 @@
 """Tests for the thumbnail redirect endpoint."""
+
 from __future__ import annotations
 
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
-
 import thumbnail_proxy
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def client():
     """TestClient with THUMBNAILS_BUCKET set to a test bucket name."""
     from main import app
+
     with patch.object(thumbnail_proxy, "_THUMBNAILS_BUCKET", "test-thumbnail-bucket"):
         with TestClient(app, raise_server_exceptions=True, follow_redirects=False) as c:
             yield c

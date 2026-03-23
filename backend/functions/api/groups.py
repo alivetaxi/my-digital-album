@@ -1,4 +1,5 @@
 """Groups route handlers."""
+
 from __future__ import annotations
 
 import secrets
@@ -19,6 +20,7 @@ router = APIRouter(tags=["groups"])
 # Request bodies
 # ---------------------------------------------------------------------------
 
+
 class CreateGroupBody(BaseModel):
     name: str
 
@@ -30,6 +32,7 @@ class JoinGroupBody(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _serialize_group(group_id: str, data: dict) -> dict:
     expires_at = data.get("inviteTokenExpiresAt")
@@ -55,6 +58,7 @@ def _new_token() -> tuple[str, datetime]:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/users/me/groups")
 def list_my_groups(uid: str = Depends(require_auth)):
@@ -122,14 +126,23 @@ def list_members(group_id: str, uid: str = Depends(require_auth)):
         user_snap = db.collection(get_col("users")).document(member_uid).get()
         if user_snap.exists:
             u = user_snap.to_dict()
-            members.append({
-                "uid": member_uid,
-                "displayName": u.get("displayName"),
-                "email": u.get("email"),
-                "photoURL": u.get("photoURL"),
-            })
+            members.append(
+                {
+                    "uid": member_uid,
+                    "displayName": u.get("displayName"),
+                    "email": u.get("email"),
+                    "photoURL": u.get("photoURL"),
+                }
+            )
         else:
-            members.append({"uid": member_uid, "displayName": None, "email": None, "photoURL": None})
+            members.append(
+                {
+                    "uid": member_uid,
+                    "displayName": None,
+                    "email": None,
+                    "photoURL": None,
+                }
+            )
     return members
 
 
@@ -165,7 +178,9 @@ def join_group(body: JoinGroupBody, uid: str = Depends(require_auth)):
         merge=True,
     )
 
-    return _serialize_group(group_id, {**data, "memberIds": data.get("memberIds", []) + [uid]})
+    return _serialize_group(
+        group_id, {**data, "memberIds": data.get("memberIds", []) + [uid]}
+    )
 
 
 @router.post("/groups/{group_id}/leave")
@@ -199,10 +214,12 @@ def regenerate_invite(group_id: str, uid: str = Depends(require_auth)):
         return error_response("PERMISSION_DENIED")
 
     token, expires_at = _new_token()
-    db.collection(get_col("groups")).document(group_id).update({
-        "inviteToken": token,
-        "inviteTokenExpiresAt": expires_at,
-    })
+    db.collection(get_col("groups")).document(group_id).update(
+        {
+            "inviteToken": token,
+            "inviteTokenExpiresAt": expires_at,
+        }
+    )
     return {
         "inviteToken": token,
         "inviteTokenExpiresAt": expires_at.isoformat(),

@@ -1,4 +1,5 @@
 """Tests for media endpoints."""
+
 from __future__ import annotations
 
 from conftest import (
@@ -28,6 +29,7 @@ UPLOAD_ITEMS = [
 # ---------------------------------------------------------------------------
 # GET /api/albums/{album_id}/media
 # ---------------------------------------------------------------------------
+
 
 class TestListMedia:
     def test_returns_items_for_public_album(self, anon_client, mocker):
@@ -84,6 +86,7 @@ class TestListMedia:
 # POST /api/albums/{album_id}/media/upload-url
 # ---------------------------------------------------------------------------
 
+
 class TestRequestUploadUrl:
     def test_returns_signed_url_keyed_by_media_id(self, client, mocker):
         album = make_album(owner=TEST_UID, visibility="private")
@@ -103,21 +106,28 @@ class TestRequestUploadUrl:
         album = make_album(owner=TEST_UID, visibility="private")
         db = build_db(album_doc=album)
         mocker.patch("media.get_db", return_value=db)
-        mocker.patch("media.generate_resumable_upload_url", return_value="https://resumable-session")
+        mocker.patch(
+            "media.generate_resumable_upload_url",
+            return_value="https://resumable-session",
+        )
 
-        large_item = [{
-            "sha256": "largehash",
-            "mimeType": "video/mp4",
-            "filename": "video.mp4",
-            "size": 50 * 1024 * 1024,  # 50 MB — over MULTIPART_THRESHOLD (30 MB)
-        }]
+        large_item = [
+            {
+                "sha256": "largehash",
+                "mimeType": "video/mp4",
+                "filename": "video.mp4",
+                "size": 50 * 1024 * 1024,  # 50 MB — over MULTIPART_THRESHOLD (30 MB)
+            }
+        ]
         resp = client.post(f"/api/albums/{ALBUM_ID}/media/upload-url", json=large_item)
         assert resp.status_code == 200
         data = resp.json()
         assert data["largehash"]["url"] == "https://resumable-session"
         assert data["largehash"]["multipart"] is True
 
-    def test_large_file_passes_allowed_origin_to_resumable_upload(self, client, mocker, monkeypatch):
+    def test_large_file_passes_allowed_origin_to_resumable_upload(
+        self, client, mocker, monkeypatch
+    ):
         album = make_album(owner=TEST_UID, visibility="private")
         db = build_db(album_doc=album)
         mocker.patch("media.get_db", return_value=db)
@@ -127,12 +137,14 @@ class TestRequestUploadUrl:
         )
         monkeypatch.setenv("UPLOAD_ALLOWED_ORIGINS", "https://app.example.com")
 
-        large_item = [{
-            "sha256": "largehash",
-            "mimeType": "video/mp4",
-            "filename": "video.mp4",
-            "size": 50 * 1024 * 1024,
-        }]
+        large_item = [
+            {
+                "sha256": "largehash",
+                "mimeType": "video/mp4",
+                "filename": "video.mp4",
+                "size": 50 * 1024 * 1024,
+            }
+        ]
         resp = client.post(
             f"/api/albums/{ALBUM_ID}/media/upload-url",
             json=large_item,
@@ -148,7 +160,9 @@ class TestRequestUploadUrl:
             origin="https://app.example.com",
         )
 
-    def test_large_file_drops_disallowed_origin_for_resumable_upload(self, client, mocker, monkeypatch):
+    def test_large_file_drops_disallowed_origin_for_resumable_upload(
+        self, client, mocker, monkeypatch
+    ):
         album = make_album(owner=TEST_UID, visibility="private")
         db = build_db(album_doc=album)
         mocker.patch("media.get_db", return_value=db)
@@ -158,12 +172,14 @@ class TestRequestUploadUrl:
         )
         monkeypatch.setenv("UPLOAD_ALLOWED_ORIGINS", "https://app.example.com")
 
-        large_item = [{
-            "sha256": "largehash",
-            "mimeType": "video/mp4",
-            "filename": "video.mp4",
-            "size": 50 * 1024 * 1024,
-        }]
+        large_item = [
+            {
+                "sha256": "largehash",
+                "mimeType": "video/mp4",
+                "filename": "video.mp4",
+                "size": 50 * 1024 * 1024,
+            }
+        ]
         resp = client.post(
             f"/api/albums/{ALBUM_ID}/media/upload-url",
             json=large_item,
@@ -187,13 +203,7 @@ class TestRequestUploadUrl:
 
         client.post(f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS)
 
-        set_call = (
-            db.collection("albums-dev")
-            .document()
-            .collection()
-            .document()
-            .set
-        )
+        set_call = db.collection("albums-dev").document().collection().document().set
         set_call.assert_called_once()
         doc_data = set_call.call_args[0][0]
         assert doc_data["thumbnailStatus"] == "pending"
@@ -225,7 +235,12 @@ class TestRequestUploadUrl:
         mocker.patch("media.generate_upload_url", return_value="https://signed-url")
 
         items = [
-            {"sha256": f"h{i}", "mimeType": "image/jpeg", "filename": "f.jpg", "size": 1024}
+            {
+                "sha256": f"h{i}",
+                "mimeType": "image/jpeg",
+                "filename": "f.jpg",
+                "size": 1024,
+            }
             for i in range(60)
         ]
         resp = client.post(f"/api/albums/{ALBUM_ID}/media/upload-url", json=items)
@@ -292,7 +307,10 @@ class TestRequestUploadUrl:
         assert resp.json()["abc123"]["url"] == "https://signed-url"
 
         media_ref = (
-            db.collection("albums-dev").document(ALBUM_ID).collection("media").document("abc123")
+            db.collection("albums-dev")
+            .document(ALBUM_ID)
+            .collection("media")
+            .document("abc123")
         )
         media_ref.set.assert_not_called()
 
@@ -350,6 +368,7 @@ class TestRequestUploadUrl:
 # GET /api/albums/{album_id}/media/{media_id}/original-url
 # ---------------------------------------------------------------------------
 
+
 class TestGetOriginalUrl:
     def test_returns_signed_url_for_album_member(self, client, mocker):
         album = make_album(owner=TEST_UID, visibility="private")
@@ -399,6 +418,7 @@ class TestGetOriginalUrl:
 # ---------------------------------------------------------------------------
 # PATCH /api/albums/{album_id}/media/{media_id}
 # ---------------------------------------------------------------------------
+
 
 class TestUpdateMedia:
     def test_uploader_can_update_description(self, client, mocker):
@@ -461,6 +481,7 @@ class TestUpdateMedia:
 # DELETE /api/albums/{album_id}/media/{media_id}
 # ---------------------------------------------------------------------------
 
+
 class TestDeleteMedia:
     def test_uploader_can_delete(self, client, mocker):
         album = make_album(owner=OTHER_UID, visibility="public")
@@ -472,7 +493,9 @@ class TestDeleteMedia:
         resp = client.delete(f"/api/albums/{ALBUM_ID}/media/{MEDIA_ID}")
         assert resp.status_code == 200
         assert resp.json()["deleted"] is True
-        db.collection("albums-dev").document().collection().document().delete.assert_called_once()
+        db.collection(
+            "albums-dev"
+        ).document().collection().document().delete.assert_called_once()
 
     def test_album_owner_can_delete(self, client, mocker):
         album = make_album(owner=TEST_UID, visibility="private")
@@ -485,7 +508,9 @@ class TestDeleteMedia:
         assert resp.status_code == 200
 
     def test_media_is_cover_blocked(self, client, mocker):
-        album = make_album(owner=OTHER_UID, visibility="public", cover_media_id=MEDIA_ID)
+        album = make_album(
+            owner=OTHER_UID, visibility="public", cover_media_id=MEDIA_ID
+        )
         media = make_media(uploader=TEST_UID)
         db = build_db(album_doc=album, media_doc=media)
         mocker.patch("media.get_db", return_value=db)

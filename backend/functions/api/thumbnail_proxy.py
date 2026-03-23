@@ -1,4 +1,5 @@
 """Thumbnail proxy — redirects /thumbnails/{path} to the public GCS object."""
+
 from __future__ import annotations
 
 import os

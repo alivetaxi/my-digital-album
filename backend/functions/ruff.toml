@@ -1,0 +1,10 @@
+[lint]
+# E/W: pycodestyle errors & warnings, F: pyflakes, I: isort
+select = ["E", "F", "W", "I"]
+ignore = [
+  "E501",  # line too long — handled by formatter
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"

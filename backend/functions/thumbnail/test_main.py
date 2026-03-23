@@ -1,4 +1,5 @@
 """Tests for thumbnail generation Cloud Function."""
+
 from __future__ import annotations
 
 import io
@@ -28,6 +29,7 @@ def _write_tmp(data: bytes, suffix: str = ".jpg") -> str:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_event(
     bucket: str = "media-bucket",
     name: str = "media/uid1/album1/mediaid1/original.jpg",
@@ -52,6 +54,7 @@ def _make_jpeg(width: int = 800, height: int = 600) -> bytes:
 # Path matching
 # ---------------------------------------------------------------------------
 
+
 class TestPathMatching:
     def test_ignores_non_media_paths(self):
         event = _make_event(name="some/other/path.jpg")
@@ -70,18 +73,22 @@ class TestPathMatching:
 # Image processing
 # ---------------------------------------------------------------------------
 
+
 class TestProcessImage:
     def test_jpeg_produces_thumbnail_and_dimensions(self):
         jpeg = _make_jpeg(800, 600)
         path = _write_tmp(jpeg, ".jpg")
         try:
-            thumbnail_bytes, width, height, exif = thumb._process_image(path, "image/jpeg")
+            thumbnail_bytes, width, height, exif = thumb._process_image(
+                path, "image/jpeg"
+            )
 
             assert isinstance(thumbnail_bytes, bytes) and len(thumbnail_bytes) > 0
             assert width == 800
             assert height == 600
 
             from PIL import Image
+
             img = Image.open(io.BytesIO(thumbnail_bytes))
             assert img.width == 400
             assert img.height == 300  # aspect ratio preserved
@@ -126,6 +133,7 @@ class TestProcessImage:
 # EXIF extraction
 # ---------------------------------------------------------------------------
 
+
 class TestExtractExif:
     def test_returns_empty_dict_when_no_exif(self):
         from PIL import Image
@@ -134,8 +142,8 @@ class TestExtractExif:
         assert thumb._extract_exif(img) == {}
 
     def test_extracts_taken_at_from_datetime_original(self):
-        from PIL import Image
         import piexif
+        from PIL import Image
 
         exif_dict = {
             "0th": {},
@@ -148,7 +156,9 @@ class TestExtractExif:
         img.info["exif"] = piexif.dump(exif_dict)
 
         result = thumb._extract_exif(img)
-        assert result["takenAt"] == datetime(2023, 6, 15, 10, 30, 0, tzinfo=timezone.utc)
+        assert result["takenAt"] == datetime(
+            2023, 6, 15, 10, 30, 0, tzinfo=timezone.utc
+        )
 
     def test_gracefully_handles_bad_exif(self):
         from PIL import Image
@@ -161,6 +171,7 @@ class TestExtractExif:
 # ---------------------------------------------------------------------------
 # Full _process flow
 # ---------------------------------------------------------------------------
+
 
 class TestProcess:
     def _mock_gcs(self, file_bytes: bytes) -> MagicMock:
@@ -182,7 +193,9 @@ class TestProcess:
         mock_update = mocker.patch("thumbnail.main._update_media")
 
         with patch("google.cloud.storage.Client", return_value=gcs):
-            thumb._process("bucket", "media/u/a/m/original.jpg", "u", "a", "m", "image/jpeg")
+            thumb._process(
+                "bucket", "media/u/a/m/original.jpg", "u", "a", "m", "image/jpeg"
+            )
 
         mock_update.assert_called_once()
         fields = mock_update.call_args[0][2]
@@ -194,7 +207,9 @@ class TestProcess:
     def test_invalid_format_marks_failed_without_retry(self, mocker):
         mock_update = mocker.patch("thumbnail.main._update_media")
 
-        with patch("thumbnail.main._process", side_effect=thumb.InvalidFileFormatError("bad")):
+        with patch(
+            "thumbnail.main._process", side_effect=thumb.InvalidFileFormatError("bad")
+        ):
             thumb.generate_thumbnail_and_metadata(_make_event())  # must NOT raise
 
         mock_update.assert_called_once()
@@ -203,7 +218,9 @@ class TestProcess:
     def test_corrupted_file_marks_failed_without_retry(self, mocker):
         mock_update = mocker.patch("thumbnail.main._update_media")
 
-        with patch("thumbnail.main._process", side_effect=thumb.CorruptedFileError("corrupt")):
+        with patch(
+            "thumbnail.main._process", side_effect=thumb.CorruptedFileError("corrupt")
+        ):
             thumb.generate_thumbnail_and_metadata(_make_event())  # must NOT raise
 
         assert mock_update.call_args[0][2]["thumbnailStatus"] == "failed"
@@ -220,6 +237,7 @@ class TestProcess:
 # Video processing
 # ---------------------------------------------------------------------------
 
+
 class TestProcessVideo:
     """Tests for _process_video — imageio_ffmpeg.read_frames and subprocess are mocked."""
 
@@ -229,10 +247,12 @@ class TestProcessVideo:
 
     def _make_reader(self, meta: dict, frame: bytes | None = None):
         """Return a generator that mimics imageio_ffmpeg.read_frames()."""
+
         def _gen():
             yield meta
             if frame is not None:
                 yield frame
+
         return _gen()
 
     def _no_tags_subprocess(self, mocker):
@@ -248,10 +268,14 @@ class TestProcessVideo:
     def test_happy_path_returns_thumbnail_and_dimensions(self, mocker):
         frame = self._make_raw_frame(1280, 720)
         meta = {"size": (1280, 720), "duration": 10.5, "fps": 30.0}
-        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        mocker.patch(
+            "imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame)
+        )
         self._no_tags_subprocess(mocker)
 
-        thumbnail_bytes, width, height, duration, metadata = thumb._process_video(self._FAKE_PATH)
+        thumbnail_bytes, width, height, duration, metadata = thumb._process_video(
+            self._FAKE_PATH
+        )
 
         assert isinstance(thumbnail_bytes, bytes) and len(thumbnail_bytes) > 0
         assert width == 1280
@@ -259,12 +283,15 @@ class TestProcessVideo:
         assert duration == pytest.approx(10.5)
 
         from PIL import Image
+
         img = Image.open(io.BytesIO(thumbnail_bytes))
         assert img.width == 400  # resized to THUMBNAIL_WIDTH
 
     def test_no_extractable_frame_raises_corrupted(self, mocker):
         meta = {"size": (1280, 720), "duration": 5.0}
-        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, None))
+        mocker.patch(
+            "imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, None)
+        )
         self._no_tags_subprocess(mocker)
 
         with pytest.raises(thumb.CorruptedFileError):
@@ -273,7 +300,9 @@ class TestProcessVideo:
     def test_zero_width_raises_corrupted(self, mocker):
         frame = self._make_raw_frame(1280, 720)
         meta = {"size": (0, 0), "duration": None}
-        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        mocker.patch(
+            "imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame)
+        )
         self._no_tags_subprocess(mocker)
 
         with pytest.raises(thumb.CorruptedFileError):
@@ -282,7 +311,9 @@ class TestProcessVideo:
     def test_extracts_creation_time_as_taken_at(self, mocker):
         frame = self._make_raw_frame(640, 480)
         meta = {"size": (640, 480), "duration": 5.0}
-        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        mocker.patch(
+            "imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame)
+        )
         stderr = "    creation_time   : 2023-06-15T10:30:00.000000Z\n"
         mocker.patch(
             "thumbnail.main.subprocess.run",
@@ -290,12 +321,16 @@ class TestProcessVideo:
         )
 
         _, _, _, _, metadata = thumb._process_video(self._FAKE_PATH)
-        assert metadata["takenAt"] == datetime(2023, 6, 15, 10, 30, 0, tzinfo=timezone.utc)
+        assert metadata["takenAt"] == datetime(
+            2023, 6, 15, 10, 30, 0, tzinfo=timezone.utc
+        )
 
     def test_quicktime_creationdate_takes_priority_over_creation_time(self, mocker):
         frame = self._make_raw_frame(640, 480)
         meta = {"size": (640, 480), "duration": 5.0}
-        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        mocker.patch(
+            "imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame)
+        )
         # Both tags present; creationdate includes timezone, creation_time is UTC
         stderr = (
             "    creation_time   : 2023-06-14T16:30:00.000000Z\n"
@@ -308,9 +343,6 @@ class TestProcessVideo:
 
         _, _, _, _, metadata = thumb._process_video(self._FAKE_PATH)
         # Should use quicktime_creationdate (local midnight +08:00 = UTC 16:30)
-        from datetime import timezone as tz
-        import datetime as dt_mod
-        expected_tz = dt_mod.timezone(dt_mod.timedelta(hours=8))
         assert metadata["takenAt"].year == 2023
         assert metadata["takenAt"].month == 6
         assert metadata["takenAt"].day == 15
@@ -319,7 +351,9 @@ class TestProcessVideo:
     def test_skips_epoch_sentinel_creation_time(self, mocker):
         frame = self._make_raw_frame(640, 480)
         meta = {"size": (640, 480), "duration": 5.0}
-        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        mocker.patch(
+            "imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame)
+        )
         # Null sentinel: year < 2000 means timestamp was never set
         stderr = "    creation_time   : 1970-01-01T00:00:00.000000Z\n"
         mocker.patch(
@@ -333,7 +367,9 @@ class TestProcessVideo:
     def test_skips_qt_null_sentinel_creation_time(self, mocker):
         frame = self._make_raw_frame(640, 480)
         meta = {"size": (640, 480), "duration": 5.0}
-        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        mocker.patch(
+            "imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame)
+        )
         stderr = "    creation_time   : 0001-01-01T00:00:00.000000Z\n"
         mocker.patch(
             "thumbnail.main.subprocess.run",
@@ -346,7 +382,9 @@ class TestProcessVideo:
     def test_extracts_gps_location_as_taken_place(self, mocker):
         frame = self._make_raw_frame(640, 480)
         meta = {"size": (640, 480), "duration": 5.0}
-        mocker.patch("imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame))
+        mocker.patch(
+            "imageio_ffmpeg.read_frames", return_value=self._make_reader(meta, frame)
+        )
         stderr = "    location        : +35.6894+139.6917+40/\n"
         mocker.patch(
             "thumbnail.main.subprocess.run",
@@ -363,6 +401,7 @@ class TestProcessVideo:
 # ---------------------------------------------------------------------------
 # ISO 6709 parsing
 # ---------------------------------------------------------------------------
+
 
 class TestParseIso6709:
     def test_parses_positive_lat_lng(self):
@@ -385,6 +424,7 @@ class TestParseIso6709:
 # _process — video branch
 # ---------------------------------------------------------------------------
 
+
 class TestProcessVideoIntegration:
     def test_video_content_type_calls_process_video(self, mocker):
         jpeg = _make_jpeg()
@@ -397,7 +437,9 @@ class TestProcessVideoIntegration:
         mock_update = mocker.patch("thumbnail.main._update_media")
 
         with patch("google.cloud.storage.Client", return_value=gcs_client):
-            thumb._process("bucket", "media/u/a/m/original.mp4", "u", "a", "m", "video/mp4")
+            thumb._process(
+                "bucket", "media/u/a/m/original.mp4", "u", "a", "m", "video/mp4"
+            )
 
         mock_process_video.assert_called_once()
         # Argument must be a string path, not bytes
@@ -413,12 +455,20 @@ class TestProcessVideoIntegration:
 
         with patch("google.cloud.storage.Client", return_value=gcs_mock):
             with pytest.raises(thumb.InvalidFileFormatError):
-                thumb._process("bucket", "media/u/a/m/original.bin", "u", "a", "m", "application/octet-stream")
+                thumb._process(
+                    "bucket",
+                    "media/u/a/m/original.bin",
+                    "u",
+                    "a",
+                    "m",
+                    "application/octet-stream",
+                )
 
 
 # ---------------------------------------------------------------------------
 # Firestore helpers
 # ---------------------------------------------------------------------------
+
 
 class TestFirestoreHelpers:
     def test_update_media_writes_correct_path(self):
@@ -429,4 +479,3 @@ class TestFirestoreHelpers:
         mock_db.collection.assert_called_with("albums-dev")
         doc_ref = mock_db.collection().document().collection().document()
         doc_ref.update.assert_called_once_with({"thumbnailStatus": "ready"})
-
