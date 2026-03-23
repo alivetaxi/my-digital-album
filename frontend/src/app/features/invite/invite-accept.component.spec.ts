@@ -14,12 +14,14 @@ function createComponent(options: {
   const { albumId = 'a1', token = 'tok', uid = 'uid-1' } = options;
 
   const albumSpy = jasmine.createSpyObj<AlbumService>('AlbumService', ['acceptInvite']);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   albumSpy.acceptInvite.and.resolveTo({} as any);
 
   // user: signal(null) = auth resolved, not signed in.
   // user: signal({ uid }) = auth resolved, signed in.
   const userValue = uid ? { uid } : null;
   const authStub = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     user: signal(userValue as any),
     uid: signal(uid),
   } as unknown as AuthService;

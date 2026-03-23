@@ -4,7 +4,7 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { AlbumService, AlbumApiError } from './album.service';
+import { AlbumService } from './album.service';
 import { AuthService } from '../auth/auth.service';
 
 /** Flush the 2-tick async chain inside authHeaders(): getIdToken() → authHeaders() resolve. */

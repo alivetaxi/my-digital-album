@@ -6,6 +6,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 
 function createComponent(returnUrl: string | null = null) {
   const authSpy = jasmine.createSpyObj<AuthService>('AuthService', ['signInWithGoogle']);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (authSpy as any).isLoading = signal(false);
 
   const activatedRouteMock = {

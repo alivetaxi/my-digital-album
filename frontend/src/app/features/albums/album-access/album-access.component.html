@@ -1,4 +1,4 @@
-<div class="modal-backdrop" (click)="close()"></div>
+<div class="modal-backdrop" role="button" tabindex="0" aria-label="Close" (click)="close()" (keyup.enter)="close()" (keyup.escape)="close()"></div>
 <div class="modal">
   <header class="modal-header">
     <h2>{{ isOwner() ? 'Manage Access' : 'Who has access' }}</h2>

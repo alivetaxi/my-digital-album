@@ -1,4 +1,4 @@
-<div class="modal-backdrop" (click)="cancel()"></div>
+<div class="modal-backdrop" role="button" tabindex="0" aria-label="Close" (click)="cancel()" (keyup.enter)="cancel()" (keyup.escape)="cancel()"></div>
 <div class="modal">
   <header class="modal-header">
     <h2>{{ album() ? 'Edit Album' : 'New Album' }}</h2>
@@ -20,7 +20,6 @@
       (input)="title.set($any($event.target).value)"
       maxlength="100"
       [disabled]="readonly()"
-      autofocus
     />
 
     <fieldset class="visibility-group">

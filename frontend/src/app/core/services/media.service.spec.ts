@@ -287,6 +287,7 @@ describe('MediaService', () => {
     const flushUpload = () => new Promise<void>(r => setTimeout(r, 0));
 
     beforeEach(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       spyOn(service as any, 'sha256').and.resolveTo(EMPTY_SHA256);
       fetchSpy = spyOn(window, 'fetch').and.resolveTo(
         new Response(null, { status: 200 })

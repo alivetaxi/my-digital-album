@@ -292,7 +292,11 @@ export class MediaViewerComponent implements OnInit {
     const dx = e.changedTouches[0].clientX - this.touchStartX;
     this.dragOffset.set(0);
     if (Math.abs(dx) > 50) {
-      dx < 0 ? this.goTo(this.currentIndex() + 1) : this.goTo(this.currentIndex() - 1);
+      if (dx < 0) {
+        this.goTo(this.currentIndex() + 1);
+      } else {
+        this.goTo(this.currentIndex() - 1);
+      }
     }
   }
 
