@@ -21,14 +21,14 @@ const makeAlbum = (overrides: Partial<Album> = {}): Album => ({
   ...overrides,
 });
 
-function createComponent(options: { albums?: Album[] } = {}) {
-  const { albums = [] } = options;
+function createComponent(options: { albums?: Album[]; sharedAlbums?: Album[] } = {}) {
+  const { albums = [], sharedAlbums = [] } = options;
 
   const albumSpy = jasmine.createSpyObj<AlbumService>('AlbumService', [
     'listAlbums',
     'deleteAlbum',
   ]);
-  albumSpy.listAlbums.and.resolveTo({ mine: albums, shared: [], public: [] });
+  albumSpy.listAlbums.and.resolveTo({ mine: albums, shared: sharedAlbums, public: [] });
   albumSpy.deleteAlbum.and.resolveTo();
 
   // user: signal(null) means "auth resolved, not signed in" (non-undefined passes
@@ -67,6 +67,17 @@ describe('AlbumListComponent', () => {
       expect(component.myAlbums()[0].id).toBe('a1');
       expect(component.isLoading()).toBeFalse();
       expect(component.loadError()).toBeFalse();
+    }));
+
+    it('populates sharedWithMe from the shared list', fakeAsync(async () => {
+      const shared = makeAlbum({ id: 's1', visibility: 'private' });
+      const { component } = createComponent({ sharedAlbums: [shared] });
+
+      await component.ngOnInit();
+      tick();
+
+      expect(component.sharedWithMe().length).toBe(1);
+      expect(component.sharedWithMe()[0].visibility).toBe('private');
     }));
 
     it('sets loadError on API failure', fakeAsync(async () => {

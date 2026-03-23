@@ -91,7 +91,7 @@
                     </svg>
                   </div>
                 }
-                <span class="visibility-badge badge-group">group</span>
+                <span class="visibility-badge" [class]="'badge-' + album.visibility">{{ album.visibility }}</span>
               </div>
               <div class="album-info">
                 <span class="album-title">{{ album.title }}</span>
