@@ -232,6 +232,51 @@ class TestRequestUploadUrl:
         assert resp.status_code == 200
         assert len(resp.json()) == 50
 
+    def test_increments_media_count_for_new_item(self, client, mocker):
+        """Uploading a brand-new item must increment mediaCount immediately."""
+        album = make_album(owner=TEST_UID, visibility="private")
+        db = build_db(album_doc=album)
+        mocker.patch("media.get_db", return_value=db)
+        mocker.patch("media.generate_upload_url", return_value="https://signed-url")
+
+        client.post(f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS)
+
+        album_ref = db.collection("albums-dev").document.return_value
+        update_call = album_ref.update
+        update_call.assert_called_once()
+        call_data = update_call.call_args[0][0]
+        assert "mediaCount" in call_data
+
+    def test_increments_media_count_for_failed_item(self, client, mocker):
+        """Re-uploading a previously-failed item must increment mediaCount (it was never counted)."""
+        album = make_album(owner=TEST_UID, visibility="private")
+        existing_media = make_media(media_id="abc123", thumbnail_status="failed")
+        db = build_db(album_doc=album, media_doc=existing_media)
+        mocker.patch("media.get_db", return_value=db)
+        mocker.patch("media.generate_upload_url", return_value="https://signed-url")
+
+        client.post(f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS)
+
+        album_ref = db.collection("albums-dev").document.return_value
+        update_call = album_ref.update
+        update_call.assert_called_once()
+        call_data = update_call.call_args[0][0]
+        assert "mediaCount" in call_data
+
+    def test_does_not_increment_media_count_for_pending_item(self, client, mocker):
+        """Re-uploading a pending item must not double-count (it was counted at first upload)."""
+        album = make_album(owner=TEST_UID, visibility="private")
+        existing_media = make_media(media_id="abc123", thumbnail_status="pending")
+        db = build_db(album_doc=album, media_doc=existing_media)
+        mocker.patch("media.get_db", return_value=db)
+        mocker.patch("media.generate_upload_url", return_value="https://signed-url")
+
+        client.post(f"/api/albums/{ALBUM_ID}/media/upload-url", json=UPLOAD_ITEMS)
+
+        album_ref = db.collection("albums-dev").document.return_value
+        update_call = album_ref.update
+        update_call.assert_not_called()
+
     def test_skips_set_when_media_already_ready(self, client, mocker):
         """Re-uploading a file whose thumbnail is already ready must not reset the doc."""
         album = make_album(owner=TEST_UID, visibility="private")

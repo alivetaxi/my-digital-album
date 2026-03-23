@@ -115,6 +115,7 @@ def request_upload_url(
     if not can_write_album(album, uid):
         return error_response("PERMISSION_DENIED")
 
+    album_ref = db.collection(get_col("albums")).document(album_id)
     bucket = os.environ.get("MEDIA_BUCKET", "")
     now = datetime.now(timezone.utc)
     result: dict[str, str] = {}
@@ -128,18 +129,18 @@ def request_upload_url(
         ext = MIME_TO_EXT.get(item.mimeType, "bin")
         storage_path = f"media/{uid}/{album_id}/{media_id}/original.{ext}"
 
-
         media_ref = (
-            db.collection(get_col("albums"))
-            .document(album_id)
+            album_ref
             .collection("media")
             .document(media_id)
         )
 
         existing = media_ref.get()
-        if not (existing.exists and existing.to_dict().get("thumbnailStatus") == "ready"):
+        existing_status = existing.to_dict().get("thumbnailStatus") if existing.exists else None
+
+        if not (existing.exists and existing_status == "ready"):
             # New upload or re-upload of a failed/pending item — (re)create the doc.
-            # Skip if already "ready" so the thumbnail function won't double-count mediaCount.
+            # Skip if already "ready" to avoid resetting a completed item.
             media_ref.set(
                 {
                     "id": media_id,
@@ -158,6 +159,17 @@ def request_upload_url(
                     "updatedAt": now,
                 }
             )
+            # Increment mediaCount immediately so the header reflects the new item
+            # without waiting for thumbnail processing to complete.
+            # Only count truly new items or previously-failed ones (pending items were
+            # already counted when first uploaded).
+            if not existing.exists or existing_status == "failed":
+                album_ref.update(
+                    {
+                        "mediaCount": firestore.Increment(1),
+                        "updatedAt": now,
+                    }
+                )
 
         if item.size > MULTIPART_THRESHOLD:
             url = generate_resumable_upload_url(

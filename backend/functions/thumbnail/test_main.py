@@ -176,12 +176,10 @@ class TestProcess:
         client.bucket.return_value = bucket
         return client
 
-    def test_happy_path_updates_firestore_and_increments_count(self, mocker):
+    def test_happy_path_updates_firestore(self, mocker):
         jpeg = _make_jpeg()
         gcs = self._mock_gcs(jpeg)
-        mocker.patch("thumbnail.main._is_media_ready", return_value=False)
         mock_update = mocker.patch("thumbnail.main._update_media")
-        mock_increment = mocker.patch("thumbnail.main._increment_media_count")
 
         with patch("google.cloud.storage.Client", return_value=gcs):
             thumb._process("bucket", "media/u/a/m/original.jpg", "u", "a", "m", "image/jpeg")
@@ -192,21 +190,6 @@ class TestProcess:
         assert fields["width"] == 800
         assert fields["height"] == 600
         assert "thumbnailPath" in fields
-        mock_increment.assert_called_once_with("a")
-
-    def test_skips_increment_when_media_already_ready(self, mocker):
-        """Re-uploading an existing file must not double-count mediaCount."""
-        jpeg = _make_jpeg()
-        gcs = self._mock_gcs(jpeg)
-        mocker.patch("thumbnail.main._is_media_ready", return_value=True)
-        mock_update = mocker.patch("thumbnail.main._update_media")
-        mock_increment = mocker.patch("thumbnail.main._increment_media_count")
-
-        with patch("google.cloud.storage.Client", return_value=gcs):
-            thumb._process("bucket", "media/u/a/m/original.jpg", "u", "a", "m", "image/jpeg")
-
-        mock_update.assert_called_once()
-        mock_increment.assert_not_called()
 
     def test_invalid_format_marks_failed_without_retry(self, mocker):
         mock_update = mocker.patch("thumbnail.main._update_media")
@@ -412,8 +395,6 @@ class TestProcessVideoIntegration:
             return_value=(jpeg, 1280, 720, 10.5, {}),
         )
         mock_update = mocker.patch("thumbnail.main._update_media")
-        mocker.patch("thumbnail.main._increment_media_count")
-        mocker.patch("thumbnail.main._is_media_ready", return_value=False)
 
         with patch("google.cloud.storage.Client", return_value=gcs_client):
             thumb._process("bucket", "media/u/a/m/original.mp4", "u", "a", "m", "video/mp4")
@@ -449,10 +430,3 @@ class TestFirestoreHelpers:
         doc_ref = mock_db.collection().document().collection().document()
         doc_ref.update.assert_called_once_with({"thumbnailStatus": "ready"})
 
-    def test_increment_media_count_calls_firestore_increment(self):
-        mock_db = MagicMock()
-        with patch("google.cloud.firestore.Client", return_value=mock_db):
-            thumb._increment_media_count("album-1")
-
-        update_args = mock_db.collection().document().update.call_args[0][0]
-        assert "mediaCount" in update_args

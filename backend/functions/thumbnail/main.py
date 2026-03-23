@@ -74,10 +74,6 @@ def _process(
 ) -> None:
     from google.cloud import storage as gcs
 
-    # Check before processing — if the media is already "ready" this is a
-    # re-upload of an existing file, so we must not double-count it.
-    already_ready = _is_media_ready(album_id, media_id)
-
     client = gcs.Client(project=os.environ.get("GCP_PROJECT_ID"))
     suffix = os.path.splitext(object_name)[1] or ".bin"
     tmp_fd, src_path = tempfile.mkstemp(suffix=suffix)
@@ -120,8 +116,6 @@ def _process(
         updates["takenPlace"] = metadata["takenPlace"]
 
     _update_media(album_id, media_id, updates)
-    if not already_ready:
-        _increment_media_count(album_id)
 
 
 def _process_image(
@@ -410,23 +404,6 @@ def _get_db():
     return firestore.Client(project=os.environ.get("GCP_PROJECT_ID"))
 
 
-def _is_media_ready(album_id: str, media_id: str) -> bool:
-    """Return True if the media document already has thumbnailStatus == 'ready'."""
-    try:
-        db = _get_db()
-        snap = (
-            db.collection(_col("albums"))
-            .document(album_id)
-            .collection("media")
-            .document(media_id)
-            .get()
-        )
-        return snap.exists and snap.to_dict().get("thumbnailStatus") == "ready"
-    except Exception as exc:
-        logger.warning("Could not check media status, assuming not ready: %s", exc)
-        return False
-
-
 def _update_media(album_id: str, media_id: str, fields: dict) -> None:
     db = _get_db()
     (
@@ -438,13 +415,3 @@ def _update_media(album_id: str, media_id: str, fields: dict) -> None:
     )
 
 
-def _increment_media_count(album_id: str) -> None:
-    from google.cloud import firestore
-
-    db = _get_db()
-    db.collection(_col("albums")).document(album_id).update(
-        {
-            "mediaCount": firestore.Increment(1),
-            "updatedAt": datetime.now(timezone.utc),
-        }
-    )

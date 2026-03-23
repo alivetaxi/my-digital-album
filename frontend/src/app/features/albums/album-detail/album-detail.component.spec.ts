@@ -231,6 +231,20 @@ describe('AlbumDetailComponent', () => {
       expect(component.mediaItems()[0].id).toBe('new-m');
       expect(component.showUpload()).toBeFalse();
     }));
+
+    it('refreshes album (mediaCount) after upload', fakeAsync(async () => {
+      const { component, albumSpy } = createComponent({ album: makeAlbum({ mediaCount: 2 }) });
+      await component.ngOnInit(); tick(100);
+
+      const callsBefore = albumSpy.getAlbum.calls.count();
+      albumSpy.getAlbum.and.resolveTo(makeAlbum({ mediaCount: 5 }));
+
+      component.onUploadDone();
+      tick();
+
+      expect(albumSpy.getAlbum.calls.count()).toBeGreaterThan(callsBefore);
+      expect(component.album()?.mediaCount).toBe(5);
+    }));
   });
 
   describe('setCoverMedia', () => {
