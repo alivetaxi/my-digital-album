@@ -6,7 +6,7 @@
     "my-digital-album": {
       "hosting": {
         "dev": ["my-digital-album-dev"],
-        "prod": ["my-digital-album-prod"]
+        "prod": ["my-digital-album"]
       }
     }
   }
