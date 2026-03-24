@@ -101,6 +101,26 @@ steps:
         npm audit --audit-level=high --omit=dev
     waitFor: [setup-frontend]
 
+  # ── Frontend: e2e tests (Playwright + Firebase Auth Emulator) ──────────────
+  # Uses environment.e2e.ts (useEmulators: true / demo project) — no real
+  # Firebase config needed.  firebase emulators:exec starts the auth emulator,
+  # waits until it is ready, runs Playwright (which itself spawns ng serve via
+  # webServer), then tears the emulator down.
+  - id: e2e-frontend
+    name: node:22
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        apt-get update -qq && apt-get install -y -qq default-jre-headless
+        npm install -g --quiet firebase-tools
+        cd frontend
+        npx playwright install --with-deps chromium
+        cd ..
+        CI=true firebase emulators:exec --only auth --project demo-project \
+          "cd frontend && npx playwright test"
+    waitFor: [setup-frontend]
+
   # ── Frontend: inject Firebase config ──────────────────────────────────────
   - id: inject-firebase-config
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
@@ -131,7 +151,7 @@ steps:
         else
           npx ng build --configuration=development
         fi
-    waitFor: [inject-firebase-config, test-frontend, check-frontend-style, check-frontend-vuln]
+    waitFor: [inject-firebase-config, test-frontend, check-frontend-style, check-frontend-vuln, e2e-frontend]
 
   # ── Firestore: deploy security rules ──────────────────────────────────────
   - id: deploy-firestore-rules
