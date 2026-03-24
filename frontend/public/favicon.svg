@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <clipPath id="photo-clip">
+      <rect x="4" y="5" width="24" height="19" rx="2"/>
+    </clipPath>
+  </defs>
+  <!-- App icon background -->
+  <rect width="32" height="32" rx="7" fill="#4F46E5"/>
+  <!-- Sky -->
+  <rect x="4" y="5" width="24" height="19" rx="2" fill="#BAE6FD"/>
+  <!-- Back mountain -->
+  <polygon points="2,24 11,12 20,24" fill="#7DD3FC" clip-path="url(#photo-clip)"/>
+  <!-- Front mountain -->
+  <polygon points="13,24 21,13 30,24" fill="#0EA5E9" clip-path="url(#photo-clip)"/>
+  <!-- Sun -->
+  <circle cx="23" cy="10" r="3" fill="#FCD34D" clip-path="url(#photo-clip)"/>
+  <!-- Photo frame border -->
+  <rect x="4" y="5" width="24" height="19" rx="2" fill="none" stroke="white" stroke-width="1.5"/>
+  <!-- Polaroid bottom strip -->
+  <rect x="4" y="21" width="24" height="3" fill="white" opacity="0.9" clip-path="url(#photo-clip)"/>
+</svg>
