@@ -1,33 +1,11 @@
-import { Album, Media, User, Group } from '../models';
+import { Album, Media, User } from '../models';
 
 export const MOCK_CURRENT_USER: User = {
   uid: 'user-001',
   displayName: 'Alice Chen',
   email: 'alice@example.com',
   photoURL: 'https://i.pravatar.cc/150?u=alice',
-  groupIds: ['group-001', 'group-002'],
 };
-
-export const MOCK_GROUPS: Group[] = [
-  {
-    id: 'group-001',
-    name: 'Family',
-    ownerId: 'user-002',
-    memberIds: ['user-001', 'user-002', 'user-003'],
-    inviteToken: 'tok-abc',
-    inviteTokenExpiresAt: new Date('2026-03-17'),
-    createdAt: new Date('2025-01-01'),
-  },
-  {
-    id: 'group-002',
-    name: 'Travel Buddies',
-    ownerId: 'user-004',
-    memberIds: ['user-001', 'user-004', 'user-005'],
-    inviteToken: 'tok-def',
-    inviteTokenExpiresAt: new Date('2026-03-17'),
-    createdAt: new Date('2025-03-01'),
-  },
-];
 
 function picUrl(seed: string, w = 400, h = 300): string {
   return `https://picsum.photos/seed/${seed}/${w}/${h}`;
@@ -41,8 +19,6 @@ export const MOCK_ALBUMS: Album[] = [
     coverMediaId: 'media-001',
     coverThumbnailUrl: picUrl('summer2025', 400, 300),
     ownerId: 'user-001',
-    ownerType: 'user',
-    groupId: null,
     visibility: 'private',
     mediaCount: 24,
     createdAt: new Date('2025-07-10'),
@@ -54,8 +30,6 @@ export const MOCK_ALBUMS: Album[] = [
     coverMediaId: 'media-010',
     coverThumbnailUrl: picUrl('kyoto2025', 400, 300),
     ownerId: 'user-001',
-    ownerType: 'user',
-    groupId: null,
     visibility: 'public',
     mediaCount: 38,
     createdAt: new Date('2025-04-01'),
@@ -67,9 +41,7 @@ export const MOCK_ALBUMS: Album[] = [
     coverMediaId: null,
     coverThumbnailUrl: null,
     ownerId: 'user-001',
-    ownerType: 'user',
-    groupId: null,
-    visibility: 'group',
+    visibility: 'private',
     mediaCount: 12,
     createdAt: new Date('2025-12-25'),
     updatedAt: new Date('2025-12-26'),
@@ -81,9 +53,7 @@ export const MOCK_ALBUMS: Album[] = [
     coverMediaId: 'media-020',
     coverThumbnailUrl: picUrl('family2025', 400, 300),
     ownerId: 'user-002',
-    ownerType: 'group',
-    groupId: 'group-001',
-    visibility: 'group',
+    visibility: 'private',
     mediaCount: 55,
     createdAt: new Date('2025-08-15'),
     updatedAt: new Date('2025-08-20'),
@@ -94,9 +64,7 @@ export const MOCK_ALBUMS: Album[] = [
     coverMediaId: 'media-030',
     coverThumbnailUrl: picUrl('taiwan-trip', 400, 300),
     ownerId: 'user-004',
-    ownerType: 'group',
-    groupId: 'group-002',
-    visibility: 'group',
+    visibility: 'private',
     mediaCount: 18,
     createdAt: new Date('2026-01-10'),
     updatedAt: new Date('2026-01-15'),
@@ -108,8 +76,6 @@ export const MOCK_ALBUMS: Album[] = [
     coverMediaId: 'media-040',
     coverThumbnailUrl: picUrl('tokyo-street', 400, 300),
     ownerId: 'user-007',
-    ownerType: 'user',
-    groupId: null,
     visibility: 'public',
     mediaCount: 89,
     createdAt: new Date('2025-11-01'),
@@ -121,8 +87,6 @@ export const MOCK_ALBUMS: Album[] = [
     coverMediaId: 'media-050',
     coverThumbnailUrl: picUrl('sunset-coll', 400, 300),
     ownerId: 'user-008',
-    ownerType: 'user',
-    groupId: null,
     visibility: 'public',
     mediaCount: 45,
     createdAt: new Date('2025-09-01'),
@@ -134,8 +98,6 @@ export const MOCK_ALBUMS: Album[] = [
     coverMediaId: 'media-060',
     coverThumbnailUrl: picUrl('mountain-hike', 400, 300),
     ownerId: 'user-009',
-    ownerType: 'user',
-    groupId: null,
     visibility: 'public',
     mediaCount: 33,
     createdAt: new Date('2025-10-01'),

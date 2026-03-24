@@ -146,18 +146,6 @@ describe('MediaService', () => {
       );
     });
 
-    it('throws AlbumApiError on 403 for non-member', async () => {
-      const promise = service.listMedia('a1');
-      await flushAuth();
-      http.expectOne('/api/albums/a1/media?limit=30').flush(
-        { error: { code: 'NOT_GROUP_MEMBER', message: 'Not a group member.', status: 403 } },
-        { status: 403, statusText: 'Forbidden' }
-      );
-
-      await expectAsync(promise).toBeRejectedWith(
-        jasmine.objectContaining({ message: 'Not a group member.' })
-      );
-    });
   });
 
   describe('updateMedia', () => {

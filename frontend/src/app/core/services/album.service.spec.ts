@@ -16,8 +16,6 @@ const MOCK_ALBUM = {
   coverMediaId: null,
   coverThumbnailUrl: null,
   ownerId: 'u1',
-  ownerType: 'user' as const,
-  groupId: null,
   visibility: 'private' as const,
   mediaCount: 0,
   createdAt: new Date('2024-01-01'),

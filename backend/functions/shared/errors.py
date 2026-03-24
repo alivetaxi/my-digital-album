@@ -7,10 +7,8 @@ from fastapi.responses import JSONResponse
 ERROR_MESSAGES: dict[str, tuple[str, int]] = {
     "UNAUTHENTICATED": ("Please sign in to continue.", 401),
     "PERMISSION_DENIED": ("You don't have permission to do that.", 403),
-    "NOT_GROUP_MEMBER": ("This album is only visible to group members.", 403),
     "ALBUM_NOT_FOUND": ("Album not found.", 404),
     "MEDIA_NOT_FOUND": ("This item no longer exists.", 404),
-    "GROUP_NOT_FOUND": ("Group not found.", 404),
     "MEMBER_NOT_FOUND": ("Member not found.", 404),
     "ALBUM_NOT_EMPTY": (
         "This album still has items. Remove all media before deleting.",
@@ -25,7 +23,6 @@ ERROR_MESSAGES: dict[str, tuple[str, int]] = {
         "This invite link has expired. Ask the album owner for a new one.",
         400,
     ),
-    "ALREADY_IN_GROUP": ("You're already a member of this group.", 409),
     "ALREADY_MEMBER": ("This person already has access to the album.", 409),
 }
 

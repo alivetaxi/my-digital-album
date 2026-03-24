@@ -149,8 +149,7 @@
   text-transform: capitalize;
 
   &.badge-public { background: rgba(224, 123, 57, 0.88); color: #fff; }
-  &.badge-group { background: rgba(212, 160, 80, 0.90); color: #fff; }
-  &.badge-private { background: rgba(30, 20, 10, 0.40); color: #fff; }
+&.badge-private { background: rgba(30, 20, 10, 0.40); color: #fff; }
 }
 
 .album-info {

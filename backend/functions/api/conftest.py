@@ -103,36 +103,6 @@ def make_album(
     )
 
 
-GROUP_ID = "group-1"
-
-
-def make_group(
-    group_id: str = GROUP_ID,
-    owner: str = TEST_UID,
-    name: str = "Test Group",
-    member_ids: list | None = None,
-    invite_token: str = "valid-token-abc",
-    expired: bool = False,
-) -> MagicMock:
-    from datetime import timedelta
-
-    if member_ids is None:
-        member_ids = [owner]
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=-1 if expired else 48)
-    return make_doc(
-        group_id,
-        {
-            "id": group_id,
-            "name": name,
-            "ownerId": owner,
-            "memberIds": member_ids,
-            "inviteToken": invite_token,
-            "inviteTokenExpiresAt": expires_at,
-            "createdAt": datetime(2024, 1, 1, tzinfo=timezone.utc),
-        },
-    )
-
-
 def make_user(
     uid: str = TEST_UID,
     display_name: str = "Test User",
@@ -191,15 +161,12 @@ def build_db(
     media_doc: MagicMock | None = None,
     media_list: list[MagicMock] | None = None,
     user_doc: MagicMock | None = None,
-    group_doc: MagicMock | None = None,
     # Fallback list for all album collection queries
     album_list: list[MagicMock] | None = None,
     # Per-query overrides: used by list_albums to distinguish mine / shared / public
     mine_album_list: list[MagicMock] | None = None,
     member_album_list: list[MagicMock] | None = None,
     public_album_list: list[MagicMock] | None = None,
-    group_list: list[MagicMock] | None = None,
-    group_query_list: list[MagicMock] | None = None,
     # Per-user lookups keyed by uid (for list_members)
     user_docs_by_uid: dict[str, MagicMock] | None = None,
     # Results for the "find user by email" query in add_member
@@ -216,7 +183,6 @@ def build_db(
 
     albums_col = MagicMock()
     users_col = MagicMock()
-    groups_col = MagicMock()
 
     env = os.environ.get("ENVIRONMENT", "dev")
 
@@ -225,8 +191,6 @@ def build_db(
             return albums_col
         if name == f"users-{env}":
             return users_col
-        if name == f"groups-{env}":
-            return groups_col
         return MagicMock()
 
     db.collection.side_effect = _collection
@@ -276,7 +240,7 @@ def build_db(
             ref.get.return_value = user_docs_by_uid[uid]
             return ref
         r = MagicMock()
-        r.get.return_value = user_doc or make_doc(TEST_UID, {"groupIds": []})
+        r.get.return_value = user_doc or make_doc(TEST_UID, {})
         return r
 
     users_col.document.side_effect = _users_document
@@ -287,20 +251,5 @@ def build_db(
     users_query.where.return_value = users_query
     users_query.limit.return_value = users_query
     users_query.stream.side_effect = lambda: iter(user_by_email_list or [])
-
-    # --- groups ---
-    group_ref = MagicMock()
-    groups_col.document.return_value = group_ref
-    group_ref.get.return_value = group_doc or make_doc("group-1", None)
-    group_ref.set.return_value = None
-    group_ref.update.return_value = None
-
-    groups_query = MagicMock()
-    groups_col.where.return_value = groups_query
-    groups_query.where.return_value = groups_query
-    groups_query.limit.return_value = groups_query
-    groups_query.stream.side_effect = lambda: iter(
-        group_query_list if group_query_list is not None else (group_list or [])
-    )
 
     return db
