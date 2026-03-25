@@ -52,6 +52,8 @@ resource "google_service_account_iam_member" "functions_sa_token_creator" {
 # Allow unauthenticated invocations of the API service.
 # Security is enforced at the application layer via Firebase ID token verification.
 resource "google_cloud_run_service_iam_member" "api_public_invoker" {
+  count = var.create_triggers ? 1 : 0
+
   project  = var.project_id
   location = var.region
   service  = "api-${var.environment}"
