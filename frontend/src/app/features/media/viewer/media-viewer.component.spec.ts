@@ -2,6 +2,7 @@ import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
+import { Location } from '@angular/common';
 import { signal } from '@angular/core';
 import { MediaViewerComponent } from './media-viewer.component';
 import { MediaService } from '../../../core/services/media.service';
@@ -56,6 +57,7 @@ function createComponent(options: {
   uid?: string | null;
   mediaList?: Media[];
   album?: Album | null;
+  navigationState?: { mediaList: Media[]; nextCursor: string | null } | null;
 }) {
   const {
     albumId = 'a1',
@@ -63,6 +65,7 @@ function createComponent(options: {
     uid = 'owner-uid',
     mediaList = [makeMedia()],
     album = makeAlbum(),
+    navigationState = null,
   } = options;
 
   const mediaSpy = jasmine.createSpyObj<MediaService>('MediaService', [
@@ -81,6 +84,9 @@ function createComponent(options: {
     isAuthenticated: signal(uid !== null),
   } as unknown as AuthService;
 
+  const locationSpy = jasmine.createSpyObj<Location>('Location', ['getState']);
+  locationSpy.getState.and.returnValue(navigationState);
+
   TestBed.configureTestingModule({
     imports: [MediaViewerComponent],
     providers: [
@@ -88,6 +94,7 @@ function createComponent(options: {
       { provide: MediaService, useValue: mediaSpy },
       { provide: AlbumService, useValue: albumSpy },
       { provide: AuthService, useValue: authSpy },
+      { provide: Location, useValue: locationSpy },
       {
         provide: ActivatedRoute,
         useValue: {
@@ -99,7 +106,7 @@ function createComponent(options: {
 
   const fixture = TestBed.createComponent(MediaViewerComponent);
   const component = fixture.componentInstance;
-  return { fixture, component, mediaSpy, albumSpy };
+  return { fixture, component, mediaSpy, albumSpy, locationSpy };
 }
 
 // ---------------------------------------------------------------------------
@@ -137,6 +144,141 @@ describe('MediaViewerComponent', () => {
       await component.ngOnInit();
       tick(200);
 
+      expect(component.currentIndex()).toBe(0);
+    }));
+
+    it('finds mediaId on a later page and sets nextCursor from that page', fakeAsync(async () => {
+      const page1 = Array.from({ length: 30 }, (_, i) => makeMedia({ id: `p1-${i}` }));
+      const page2 = [makeMedia({ id: 'm31' }), makeMedia({ id: 'm32' })];
+      const { component, mediaSpy } = createComponent({ mediaId: 'm31' });
+      mediaSpy.listMedia.and.callFake((_albumId, _limit, after) =>
+        after === 'cursor-1'
+          ? Promise.resolve({ items: page2, nextCursor: 'cursor-2' })
+          : Promise.resolve({ items: page1, nextCursor: 'cursor-1' })
+      );
+
+      await component.ngOnInit();
+      tick(200);
+
+      expect(component.mediaList().length).toBe(32);
+      expect(component.currentIndex()).toBe(30);
+      expect(component.nextCursor()).toBe('cursor-2');
+    }));
+
+    it('exhausts pagination and defaults to index 0 when mediaId not found across multiple pages', fakeAsync(async () => {
+      const page1 = Array.from({ length: 30 }, (_, i) => makeMedia({ id: `p1-${i}` }));
+      const page2 = [makeMedia({ id: 'p2-0' }), makeMedia({ id: 'p2-1' })];
+      const { component, mediaSpy } = createComponent({ mediaId: 'unknown' });
+      mediaSpy.listMedia.and.callFake((_albumId, _limit, after) =>
+        after === 'cursor-1'
+          ? Promise.resolve({ items: page2, nextCursor: null })
+          : Promise.resolve({ items: page1, nextCursor: 'cursor-1' })
+      );
+
+      await component.ngOnInit();
+      tick(200);
+
+      expect(component.currentIndex()).toBe(0);
+      expect(component.mediaList().length).toBe(32);
+      expect(component.nextCursor()).toBeNull();
+    }));
+
+    it('stops paginating as soon as the item is found', fakeAsync(async () => {
+      const page1 = Array.from({ length: 30 }, (_, i) => makeMedia({ id: `p1-${i}` }));
+      const page2 = [makeMedia({ id: 'm31' })];
+      const { component, mediaSpy } = createComponent({ mediaId: 'm31' });
+      mediaSpy.listMedia.and.callFake((_albumId, _limit, after) =>
+        after === 'cursor-1'
+          ? Promise.resolve({ items: page2, nextCursor: 'cursor-2' })
+          : Promise.resolve({ items: page1, nextCursor: 'cursor-1' })
+      );
+
+      await component.ngOnInit();
+      tick(200);
+
+      expect(mediaSpy.listMedia.calls.count()).toBe(2);
+    }));
+
+    it('stops after a bounded number of pages and falls back to index 0', fakeAsync(async () => {
+      const { component, mediaSpy } = createComponent({ mediaId: 'never-found' });
+      let call = 0;
+      mediaSpy.listMedia.and.callFake(() => {
+        call++;
+        return Promise.resolve({
+          items: [makeMedia({ id: `x-${call}` })],
+          nextCursor: `cursor-${call}`,
+        });
+      });
+
+      await component.ngOnInit();
+      tick(200);
+
+      expect(mediaSpy.listMedia.calls.count()).toBeLessThanOrEqual(50);
+      expect(component.currentIndex()).toBe(0);
+      expect(component.isLoading()).toBeFalse();
+    }));
+
+    it('uses passed navigation state and skips fetching media entirely', fakeAsync(async () => {
+      const passedList = [makeMedia({ id: 'm1' }), makeMedia({ id: 'm2' }), makeMedia({ id: 'm3' })];
+      const { component, mediaSpy } = createComponent({
+        mediaId: 'm3',
+        navigationState: { mediaList: passedList, nextCursor: 'passed-cursor' },
+      });
+
+      await component.ngOnInit();
+      tick(200);
+
+      expect(mediaSpy.listMedia).not.toHaveBeenCalled();
+      expect(component.mediaList()).toEqual(passedList);
+      expect(component.currentIndex()).toBe(2);
+      expect(component.nextCursor()).toBe('passed-cursor');
+    }));
+
+    it('falls back to fetching when the passed navigation state does not contain the target id', fakeAsync(async () => {
+      const passedList = [makeMedia({ id: 'm1' }), makeMedia({ id: 'm2' })];
+      const fetchedList = [makeMedia({ id: 'm99' })];
+      const { component, mediaSpy } = createComponent({
+        mediaId: 'm99',
+        mediaList: fetchedList,
+        navigationState: { mediaList: passedList, nextCursor: null },
+      });
+
+      await component.ngOnInit();
+      tick(200);
+
+      expect(mediaSpy.listMedia).toHaveBeenCalled();
+      expect(component.mediaList()).toEqual(fetchedList);
+      expect(component.currentIndex()).toBe(0);
+    }));
+
+    it('degrades to a best-effort result when a later page fails after earlier pages succeeded', fakeAsync(async () => {
+      const page1 = Array.from({ length: 30 }, (_, i) => makeMedia({ id: `p1-${i}` }));
+      const { component, mediaSpy } = createComponent({ mediaId: 'unreachable' });
+      mediaSpy.listMedia.and.callFake((_albumId, _limit, after) =>
+        after === undefined
+          ? Promise.resolve({ items: page1, nextCursor: 'cursor-1' })
+          : Promise.reject(new Error('Network error'))
+      );
+
+      await component.ngOnInit();
+      tick(200);
+
+      expect(component.loadError()).toBeFalse();
+      expect(component.mediaList().length).toBe(30);
+      expect(component.currentIndex()).toBe(0);
+      expect(component.isLoading()).toBeFalse();
+    }));
+
+    it('stops paginating when a page returns no new items despite a non-null cursor', fakeAsync(async () => {
+      const stuckPage = [makeMedia({ id: 'stuck-1' }), makeMedia({ id: 'stuck-2' })];
+      const { component, mediaSpy } = createComponent({ mediaId: 'never-here' });
+      mediaSpy.listMedia.and.resolveTo({ items: stuckPage, nextCursor: 'same-cursor' });
+
+      await component.ngOnInit();
+      tick(200);
+
+      expect(mediaSpy.listMedia.calls.count()).toBe(2);
+      expect(component.mediaList().length).toBe(2);
       expect(component.currentIndex()).toBe(0);
     }));
   });

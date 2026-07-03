@@ -1,11 +1,26 @@
 import { expect } from '@playwright/test';
 import { test } from '../fixtures/auth.fixture';
 import { MediaViewerPage } from '../pages/media-viewer.page';
+import { AlbumDetailPage } from '../pages/album-detail.page';
 import { ALBUMS, MEDIA_ITEMS } from '../fixtures/test-data';
 
 const ALBUM_ID = ALBUMS.myPrivate.id;
 const FIRST_MEDIA = MEDIA_ITEMS[0];
 const SECOND_MEDIA = MEDIA_ITEMS[1];
+
+test.describe('Media viewer — opened via grid click', () => {
+  test('clicking the second thumbnail opens the viewer on that exact item, not the first', async ({ authedPage: page }) => {
+    const detail = new AlbumDetailPage(page);
+    const viewer = new MediaViewerPage(page);
+    await detail.goto(ALBUM_ID);
+
+    // Click the second grid cell (media-002), not the first.
+    await detail.mediaLink(1).click();
+
+    await page.locator('.viewer-page').waitFor({ state: 'visible' });
+    await expect(viewer.counter).toContainText('2 / 3');
+  });
+});
 
 test.describe('Media viewer', () => {
   test('loads and shows the current media image', async ({ authedPage: page }) => {

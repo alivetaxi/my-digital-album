@@ -39,7 +39,8 @@
   <div class="media-grid">
     @for (media of mediaItems(); track media.id) {
       <div class="media-cell">
-        <a class="media-link" [routerLink]="['/albums', albumId(), 'media', media.id]">
+        <a class="media-link" [routerLink]="['/albums', albumId(), 'media', media.id]"
+           [state]="{ mediaList: mediaItems(), nextCursor: nextCursor() }">
           @if (media.thumbnailStatus === 'ready') {
             <img [src]="media.thumbnailUrl!" [alt]="media.description ?? ''" loading="lazy" />
             @if (media.type === 'video') {

@@ -2,12 +2,21 @@ import {
   Component, computed, ElementRef,
   HostListener, inject, OnInit, signal, viewChild,
 } from '@angular/core';
+import { Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Album, Media } from '../../../core/models';
 import { AlbumApiError, AlbumService } from '../../../core/services/album.service';
-import { MediaService } from '../../../core/services/media.service';
+import { MediaPage, MediaService } from '../../../core/services/media.service';
 import { AuthService } from '../../../core/auth/auth.service';
+
+const MAX_LOCATE_PAGES = 50; // 1500 items — comfortably above any real album
+
+/** Passed via router `state` by AlbumDetailComponent so a grid click can skip the network search entirely. */
+interface NavigationMediaState {
+  mediaList: Media[];
+  nextCursor: string | null;
+}
 
 @Component({
   selector: 'app-media-viewer',
@@ -19,6 +28,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 export class MediaViewerComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
   private readonly mediaService = inject(MediaService);
   private readonly albumService = inject(AlbumService);
   private readonly auth = inject(AuthService);
@@ -76,17 +86,24 @@ export class MediaViewerComponent implements OnInit {
     const initialId = this.route.snapshot.paramMap.get('mediaId') ?? '';
 
     try {
-      const [album, page] = await Promise.all([
+      const passed = this.location.getState() as NavigationMediaState | null;
+      const passedIndex = passed?.mediaList?.findIndex(m => m.id === initialId) ?? -1;
+
+      const [album, result] = await Promise.all([
         this.albumService.getAlbum(this.albumId()).catch(() => null),
-        this.mediaService.listMedia(this.albumId()),
+        passedIndex >= 0
+          ? Promise.resolve({
+              items: passed!.mediaList,
+              nextCursor: passed!.nextCursor,
+              index: passedIndex,
+            })
+          : this.loadMediaAndLocate(initialId),
       ]);
 
       this.album.set(album);
-      this.mediaList.set(page.items);
-      this.nextCursor.set(page.nextCursor);
-
-      const idx = page.items.findIndex(m => m.id === initialId);
-      this.currentIndex.set(idx >= 0 ? idx : 0);
+      this.mediaList.set(result.items);
+      this.nextCursor.set(result.nextCursor);
+      this.currentIndex.set(result.index);
       this.isLoading.set(false);
 
       setTimeout(() => this.scrollStripToIndex(this.currentIndex()), 100);
@@ -95,6 +112,51 @@ export class MediaViewerComponent implements OnInit {
       this.loadError.set(true);
       this.isLoading.set(false);
     }
+  }
+
+  /**
+   * Paginates through `listMedia` until `targetId` is found or pagination is exhausted.
+   * Only used as a fallback when no navigation state was passed (deep link, refresh,
+   * or the target isn't in the passed list) — the album grid's infinite scroll may have
+   * already loaded items past the first page by the time the user clicks one, so a
+   * single page-1 fetch can miss the clicked item.
+   */
+  private async loadMediaAndLocate(
+    targetId: string
+  ): Promise<{ items: Media[]; nextCursor: string | null; index: number }> {
+    let items: Media[] = [];
+    let cursor: string | undefined;
+    const seenIds = new Set<string>();
+
+    for (let i = 0; i < MAX_LOCATE_PAGES; i++) {
+      let page: MediaPage;
+      try {
+        page = await this.mediaService.listMedia(this.albumId(), 30, cursor);
+      } catch (err) {
+        // Nothing fetched yet — there's nothing to show, surface as a hard failure.
+        if (items.length === 0) throw err;
+        // Already have usable pages — degrade to a best-effort result instead of
+        // discarding everything fetched so far.
+        return { items, nextCursor: cursor ?? null, index: 0 };
+      }
+
+      const newItems = page.items.filter(m => !seenIds.has(m.id));
+      newItems.forEach(m => seenIds.add(m.id));
+      items = [...items, ...newItems];
+
+      const idx = items.findIndex(m => m.id === targetId);
+      if (idx >= 0) {
+        return { items, nextCursor: page.nextCursor, index: idx };
+      }
+      // A page with no new items (despite a non-null cursor) means pagination made
+      // no forward progress — stop instead of burning the rest of the search budget.
+      if (page.nextCursor === null || newItems.length === 0) {
+        return { items, nextCursor: page.nextCursor, index: 0 };
+      }
+      cursor = page.nextCursor;
+    }
+
+    return { items, nextCursor: cursor ?? null, index: 0 };
   }
 
   private async loadOriginalUrl(index: number) {
