@@ -4,8 +4,8 @@ A full-stack photo and video sharing app built on Google Cloud Platform. Upload 
 
 ## Features
 
-- **Albums** — create public or private albums; manage members with viewer/contributor/editor permissions
-- **Media** — upload photos (JPEG, PNG, WebP, HEIC) and videos (MP4, MOV), up to 50 files × 30 MB each
+- **Albums** — create public or private albums; manage members with read/write permissions
+- **Media** — upload photos (JPEG, PNG, WebP, HEIC) and videos (MP4, MOV), up to 50 files × 500 MB each (files over 30 MB use a resumable upload session)
 - **Auto-thumbnails** — Cloud Storage trigger generates thumbnails and extracts EXIF/video metadata on upload
 - **Album sharing** — invite people to albums via time-limited tokens; manage member permissions
 - **Real-time** — Firestore-backed live updates in the frontend
@@ -17,13 +17,13 @@ A full-stack photo and video sharing app built on Google Cloud Platform. Upload 
 |---|---|
 | Frontend | Angular 21, TypeScript, Firebase SDK |
 | Backend API | Python 3.12, FastAPI, Cloud Run |
-| Thumbnail worker | Python 3.12, Pillow, Cloud Functions (Eventarc) |
+| Thumbnail worker | Python 3.12, Pillow, Cloud Run (Eventarc-triggered, Functions Framework) |
 | Database | Firestore |
 | Storage | Cloud Storage (private media + public thumbnails) |
 | Auth | Firebase Authentication |
 | Hosting | Firebase Hosting |
 | IaC | Terraform |
-| CI/CD | Cloud Build + Cloud Deploy |
+| CI/CD | Cloud Build |
 
 ## Project Structure
 
@@ -39,8 +39,7 @@ my-digital-album/
 │   └── thumbnail/          # Storage-triggered thumbnail generator
 ├── infra/                  # Terraform modules
 │   └── modules/            # firestore, storage, functions, firebase_hosting, cicd
-├── clouddeploy/            # Skaffold + Cloud Deploy pipeline configs
-├── cloudrun/               # Cloud Run service manifests
+├── cloudrun/               # Cloud Run service manifests (api.yaml, thumbnail.yaml)
 ├── firestore.rules         # Firestore security rules
 ├── firebase.json           # Firebase Hosting config
 └── cloudbuild.yaml         # CI/CD pipeline definition
@@ -59,7 +58,7 @@ User → Firebase Hosting → Angular SPA
                                                └── Cloud Storage (signed URLs)
                                                          │
                                                          └── Eventarc trigger
-                                                               → thumbnail/ (Cloud Function)
+                                                               → thumbnail/ (Cloud Run service)
                                                                      └── Firestore (metadata)
 ```
 
@@ -107,7 +106,7 @@ pip install -r thumbnail/requirements.txt
 ```bash
 cd backend/functions
 python -m pytest                         # all tests
-python -m pytest test_albums.py -v      # specific suite
+python -m pytest api/test_albums.py -v  # specific suite
 ruff check . && ruff format --check .   # lint / format check
 ```
 
@@ -139,56 +138,21 @@ terraform apply -var-file=terraform.dev.tfvars
 
 | Resource | Dev | Prod |
 |---|---|---|
-| Firestore | `album-dev` | `album-prod` |
+| Firestore | single `(default)` database; collections prefixed `albums-dev`/`users-dev` | prefixed `albums-prod`/`users-prod` |
 | Media bucket | `my-digital-album-media-dev` | `my-digital-album-media-prod` |
 | Thumbnails bucket | `my-digital-album-thumbnails-dev` | `my-digital-album-thumbnails-prod` |
 | Artifact Registry | `functions-dev` | `functions-prod` |
-| Cloud Run services | `albums-dev`, `media-dev`, `thumbnail-dev` | `*-prod` variants |
+| Cloud Run services | `api-dev`, `thumbnail-dev` | `api-prod`, `thumbnail-prod` |
 
 ## Deployment
-
-### Build & Push Docker Images
-
-Build on Apple Silicon requires `--platform linux/amd64` (Cloud Run targets amd64).
-
-```bash
-cd backend/functions
-for svc in albums media thumbnail; do
-  docker build --platform linux/amd64 \
-    -t asia-east1-docker.pkg.dev/my-digital-album/functions-dev/${svc}:latest \
-    -f ${svc}/Dockerfile .
-  docker push asia-east1-docker.pkg.dev/my-digital-album/functions-dev/${svc}:latest
-done
-```
-
-### Cloud Deploy Release
-
-```bash
-cd clouddeploy
-for svc in albums media thumbnail; do
-  gcloud deploy releases create release-$(date +%Y%m%d-%H%M) \
-    --delivery-pipeline=${svc}-pipeline-dev \
-    --region=asia-east1 \
-    --skaffold-file=skaffold-${svc}.yaml \
-    --source=.
-done
-```
-
-### Frontend
-
-```bash
-cd frontend
-ng build --configuration=production
-firebase deploy --only hosting:dev
-```
 
 ### CI/CD (Cloud Build)
 
 The `cloudbuild.yaml` pipeline runs automatically on push:
 1. Backend tests (pytest) + lint (ruff) + security audit (pip-audit)
 2. Frontend unit tests + lint + E2E (Playwright) + production build
-3. Docker build + push to Artifact Registry
-4. Cloud Deploy releases
+3. Firestore rules deploy + Firebase Hosting deploy
+4. Docker build + push to Artifact Registry, then deploy each service to Cloud Run via `gcloud run services replace`
 
 ## API Reference
 
@@ -198,25 +162,27 @@ All endpoints are prefixed with `/api` and require a Firebase ID token in the `A
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/albums` | List albums (mine / shared / public) |
+| `GET` | `/albums` | List albums grouped by `mine` / `shared` / `public` |
 | `POST` | `/albums` | Create album |
 | `GET` | `/albums/{id}` | Get album details |
 | `PATCH` | `/albums/{id}` | Update title / cover / visibility |
 | `DELETE` | `/albums/{id}` | Delete album (owner, empty only) |
-| `POST` | `/albums/{id}/invite` | Generate 24-hour invite token |
-| `POST` | `/albums/{id}/accept-invite` | Join album via token |
-| `POST` | `/albums/{id}/members/{uid}` | Add / update member permission |
-| `DELETE` | `/albums/{id}/members/{uid}` | Remove member |
+| `GET` | `/albums/{id}/members` | List members |
+| `POST` | `/albums/{id}/members` | Add a member by email; grants access directly if the user already exists, otherwise generates a 24-hour invite token |
+| `PATCH` | `/albums/{id}/members/{email}` | Update a member's permission |
+| `DELETE` | `/albums/{id}/members/{email}` | Remove member |
+| `POST` | `/albums/{id}/accept-invite` | Join album via invite token |
 
 ### Media
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/albums/{id}/media` | List media (paginated, 30/page) |
-| `GET` | `/albums/{id}/media/{mediaId}` | Get media details |
+| `GET` | `/albums/{id}/media` | List media (cursor-paginated, default 30/page) |
+| `GET` | `/albums/{id}/media/{mediaId}/original-url` | Get a signed GCS read URL for the original file |
 | `PATCH` | `/albums/{id}/media/{mediaId}` | Update description |
-| `POST` | `/albums/{id}/media/upload-urls` | Generate resumable GCS upload URLs |
-| `GET` | `/media/{mediaId}/thumbnail` | Proxy thumbnail from Cloud Storage |
+| `DELETE` | `/albums/{id}/media/{mediaId}` | Delete media |
+| `POST` | `/albums/{id}/media/upload-url` | Generate GCS upload URLs (signed PUT, or a resumable session above 30 MB) |
+| `GET` | `/thumbnail/{path}` | Redirect to the public thumbnail object in Cloud Storage |
 
 ## Environment Variables
 
@@ -224,11 +190,12 @@ Backend Cloud Run services receive these at runtime (injected via Cloud Run envi
 
 | Variable | Description |
 |---|---|
-| `GCP_PROJECT` | GCP project ID |
-| `ENV` | Environment (`dev` or `prod`) |
+| `GCP_PROJECT_ID` | GCP project ID |
+| `ENVIRONMENT` | Environment (`dev` or `prod`) |
 | `MEDIA_BUCKET` | GCS bucket for raw media uploads |
-| `THUMBNAIL_BUCKET` | GCS bucket for generated thumbnails |
-| `FIREBASE_SA_SECRET` | Secret Manager secret name for Firebase Admin credentials |
+| `THUMBNAILS_BUCKET` | GCS bucket for generated thumbnails |
+| `GEOCODING_API_KEY` | Google Maps Geocoding API key (thumbnail service only; sourced from Secret Manager) |
+| `UPLOAD_ALLOWED_ORIGINS` | Optional comma-separated allowlist for resumable-upload CORS origin binding (api service only) |
 
 ## Firestore Security Rules
 
